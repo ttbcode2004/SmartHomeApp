@@ -1,13 +1,17 @@
 import Product from "../models/product.model.js";
 import User from "../models/user.model.js";
 import Notification from "../models/notification.model.js";
+import { getAuth } from "@clerk/express";
+import cloudinary from "../config/cloudinary.js";
 
 /* ================================================================
    HELPER
 ================================================================ */
 const handleError = (res, err, msg = "Server error") => {
   console.error(err);
-  return res.status(500).json({ success: false, message: msg, error: err.message });
+  return res
+    .status(500)
+    .json({ success: false, message: msg, error: err.message });
 };
 
 /* ================================================================
@@ -99,11 +103,17 @@ export const getProducts = async (req, res) => {
  */
 export const getProductById = async (req, res) => {
   try {
-    const product = await Product.findOne({ _id: req.params.id, isActive: true })
+    const product = await Product.findOne({
+      _id: req.params.id,
+      isActive: true,
+    })
       .populate("user", "firstName lastName username profilePicture bio")
       .populate("likes", "firstName lastName username profilePicture");
 
-    if (!product) return res.status(404).json({ success: false, message: "Product not found" });
+    if (!product)
+      return res
+        .status(404)
+        .json({ success: false, message: "Product not found" });
     return res.json({ success: true, data: product });
   } catch (err) {
     return handleError(res, err);
@@ -116,9 +126,18 @@ export const getProductById = async (req, res) => {
  */
 export const getProductsByCategory = async (req, res) => {
   try {
-    const validCategories = ["control", "led", "electric", "curtain", "air-conditioner", "camera"];
+    const validCategories = [
+      "control",
+      "led",
+      "electric",
+      "curtain",
+      "air-conditioner",
+      "camera",
+    ];
     if (!validCategories.includes(req.params.category)) {
-      return res.status(400).json({ success: false, message: "Invalid category" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Invalid category" });
     }
 
     const { page = 1, limit = 12, sort = "newest" } = req.query;
@@ -188,7 +207,10 @@ export const getProductsByUser = async (req, res) => {
 export const getRelatedProducts = async (req, res) => {
   try {
     const product = await Product.findById(req.params.id).select("category");
-    if (!product) return res.status(404).json({ success: false, message: "Product not found" });
+    if (!product)
+      return res
+        .status(404)
+        .json({ success: false, message: "Product not found" });
 
     const related = await Product.find({
       category: product.category,
@@ -216,31 +238,65 @@ export const getRelatedProducts = async (req, res) => {
  * Body: { name, summary, description, price, images[], category, stock }
  */
 export const createProduct = async (req, res) => {
-  try {
-    const currentUser = await User.findOne({ clerkId: req.auth.userId }).select("_id");
-    if (!currentUser) return res.status(404).json({ success: false, message: "User not found" });
+  const { userId } = getAuth(req);
+  const { name, summary, description, price, category, stock } = req.body;
+  const imagesFile = req.files;
 
-    const { name, summary, description, price, images, category, stock } = req.body;
-
-    if (!name || !summary || !description || price === undefined || !images?.length || !category) {
-      return res.status(400).json({ success: false, message: "Missing required fields" });
-    }
-
-    const product = await Product.create({
-      user: currentUser._id,
-      name,
-      summary,
-      description,
-      price,
-      images,
-      category,
-      stock: stock || 0,
-    });
-
-    return res.status(201).json({ success: true, data: product });
-  } catch (err) {
-    return handleError(res, err);
+  if (
+    !name ||
+    !summary ||
+    !description ||
+    price === undefined ||
+    !images?.length ||
+    !category ||
+    !imagesFile?.length
+  ) {
+    return res
+      .status(400)
+      .json({ success: false, message: "Missing required fields" });
   }
+
+  const user = await User.findOne({ clerkId: userId });
+  if (!user) return res.status(404).json({ error: "User not found" });
+
+  let imagesUrl = "";
+
+  // upload image to Cloudinary if provided
+  if (imagesFile) {
+    try {
+      // convert buffer to base64 for cloudinary
+      const base64Image = `data:${imageFile.mimetype};base64,${imageFile.buffer.toString(
+        "base64",
+      )}`;
+
+      const uploadResponse = await cloudinary.uploader.upload(base64Image, {
+        folder: "social_media_posts",
+        resource_type: "image",
+        transformation: [
+          { width: 800, height: 600, crop: "limit" },
+          { quality: "auto" },
+          { format: "auto" },
+        ],
+      });
+      imagesUrl = uploadResponse.secure_url;
+    } catch (uploadError) {
+      console.error("Cloudinary upload error:", uploadError);
+      return res.status(400).json({ error: "Failed to upload image" });
+    }
+  }
+
+  const product = await Product.create({
+    user: user._id,
+    name,
+    summary,
+    description,
+    price,
+    images: [imagesUrl],
+    category,
+    stock: stock || 0,
+  });
+
+  return res.status(201).json({ success: true, data: product });
 };
 
 /**
@@ -249,8 +305,13 @@ export const createProduct = async (req, res) => {
  */
 export const getMyProducts = async (req, res) => {
   try {
-    const currentUser = await User.findOne({ clerkId: req.auth.userId }).select("_id");
-    if (!currentUser) return res.status(404).json({ success: false, message: "User not found" });
+    const currentUser = await User.findOne({ clerkId: req.auth.userId }).select(
+      "_id",
+    );
+    if (!currentUser)
+      return res
+        .status(404)
+        .json({ success: false, message: "User not found" });
 
     const { page = 1, limit = 12, isActive } = req.query;
     const filter = { user: currentUser._id };
@@ -283,11 +344,19 @@ export const getMyProducts = async (req, res) => {
  */
 export const updateProduct = async (req, res) => {
   try {
-    const currentUser = await User.findOne({ clerkId: req.auth.userId }).select("_id role");
-    if (!currentUser) return res.status(404).json({ success: false, message: "User not found" });
+    const currentUser = await User.findOne({ clerkId: req.auth.userId }).select(
+      "_id role",
+    );
+    if (!currentUser)
+      return res
+        .status(404)
+        .json({ success: false, message: "User not found" });
 
     const product = await Product.findById(req.params.id);
-    if (!product) return res.status(404).json({ success: false, message: "Product not found" });
+    if (!product)
+      return res
+        .status(404)
+        .json({ success: false, message: "Product not found" });
 
     // Chỉ owner hoặc admin mới được update
     const isOwner = product.user.toString() === currentUser._id.toString();
@@ -295,7 +364,16 @@ export const updateProduct = async (req, res) => {
       return res.status(403).json({ success: false, message: "Forbidden" });
     }
 
-    const allowedFields = ["name", "summary", "description", "price", "images", "category", "stock", "isActive"];
+    const allowedFields = [
+      "name",
+      "summary",
+      "description",
+      "price",
+      "images",
+      "category",
+      "stock",
+      "isActive",
+    ];
     const updates = {};
     allowedFields.forEach((f) => {
       if (req.body[f] !== undefined) updates[f] = req.body[f];
@@ -304,7 +382,7 @@ export const updateProduct = async (req, res) => {
     const updated = await Product.findByIdAndUpdate(
       req.params.id,
       { $set: updates },
-      { new: true, runValidators: true }
+      { new: true, runValidators: true },
     );
 
     return res.json({ success: true, data: updated });
@@ -319,11 +397,19 @@ export const updateProduct = async (req, res) => {
  */
 export const deleteProduct = async (req, res) => {
   try {
-    const currentUser = await User.findOne({ clerkId: req.auth.userId }).select("_id role");
-    if (!currentUser) return res.status(404).json({ success: false, message: "User not found" });
+    const currentUser = await User.findOne({ clerkId: req.auth.userId }).select(
+      "_id role",
+    );
+    if (!currentUser)
+      return res
+        .status(404)
+        .json({ success: false, message: "User not found" });
 
     const product = await Product.findById(req.params.id);
-    if (!product) return res.status(404).json({ success: false, message: "Product not found" });
+    if (!product)
+      return res
+        .status(404)
+        .json({ success: false, message: "Product not found" });
 
     const isOwner = product.user.toString() === currentUser._id.toString();
     if (!isOwner && currentUser.role !== "admin") {
@@ -345,7 +431,10 @@ export const deleteProduct = async (req, res) => {
 export const hardDeleteProduct = async (req, res) => {
   try {
     const product = await Product.findByIdAndDelete(req.params.id);
-    if (!product) return res.status(404).json({ success: false, message: "Product not found" });
+    if (!product)
+      return res
+        .status(404)
+        .json({ success: false, message: "Product not found" });
     return res.json({ success: true, message: "Product permanently deleted" });
   } catch (err) {
     return handleError(res, err);
@@ -363,11 +452,19 @@ export const hardDeleteProduct = async (req, res) => {
  */
 export const updateStock = async (req, res) => {
   try {
-    const currentUser = await User.findOne({ clerkId: req.auth.userId }).select("_id role");
-    if (!currentUser) return res.status(404).json({ success: false, message: "User not found" });
+    const currentUser = await User.findOne({ clerkId: req.auth.userId }).select(
+      "_id role",
+    );
+    if (!currentUser)
+      return res
+        .status(404)
+        .json({ success: false, message: "User not found" });
 
     const product = await Product.findById(req.params.id);
-    if (!product) return res.status(404).json({ success: false, message: "Product not found" });
+    if (!product)
+      return res
+        .status(404)
+        .json({ success: false, message: "Product not found" });
 
     const isOwner = product.user.toString() === currentUser._id.toString();
     if (!isOwner && currentUser.role !== "admin") {
@@ -380,16 +477,22 @@ export const updateStock = async (req, res) => {
       // Cộng/trừ relative (ví dụ: increment: -5 để trừ 5)
       const newStock = product.stock + Number(increment);
       if (newStock < 0) {
-        return res.status(400).json({ success: false, message: "Stock cannot be negative" });
+        return res
+          .status(400)
+          .json({ success: false, message: "Stock cannot be negative" });
       }
       product.stock = newStock;
     } else if (stock !== undefined) {
       if (Number(stock) < 0) {
-        return res.status(400).json({ success: false, message: "Stock cannot be negative" });
+        return res
+          .status(400)
+          .json({ success: false, message: "Stock cannot be negative" });
       }
       product.stock = Number(stock);
     } else {
-      return res.status(400).json({ success: false, message: "Provide stock or increment" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Provide stock or increment" });
     }
 
     await product.save();
@@ -409,22 +512,40 @@ export const updateStock = async (req, res) => {
  */
 export const toggleLike = async (req, res) => {
   try {
-    const currentUser = await User.findOne({ clerkId: req.auth.userId }).select("_id");
-    if (!currentUser) return res.status(404).json({ success: false, message: "User not found" });
+    const currentUser = await User.findOne({ clerkId: req.auth.userId }).select(
+      "_id",
+    );
+    if (!currentUser)
+      return res
+        .status(404)
+        .json({ success: false, message: "User not found" });
 
     const product = await Product.findById(req.params.id).select("likes user");
-    if (!product) return res.status(404).json({ success: false, message: "Product not found" });
+    if (!product)
+      return res
+        .status(404)
+        .json({ success: false, message: "Product not found" });
 
     const userId = currentUser._id;
-    const isLiked = product.likes.some((id) => id.toString() === userId.toString());
+    const isLiked = product.likes.some(
+      (id) => id.toString() === userId.toString(),
+    );
 
     if (isLiked) {
       // Unlike
-      await Product.findByIdAndUpdate(req.params.id, { $pull: { likes: userId } });
-      return res.json({ success: true, action: "unliked", likes: product.likes.length - 1 });
+      await Product.findByIdAndUpdate(req.params.id, {
+        $pull: { likes: userId },
+      });
+      return res.json({
+        success: true,
+        action: "unliked",
+        likes: product.likes.length - 1,
+      });
     } else {
       // Like
-      await Product.findByIdAndUpdate(req.params.id, { $addToSet: { likes: userId } });
+      await Product.findByIdAndUpdate(req.params.id, {
+        $addToSet: { likes: userId },
+      });
 
       // Gửi notification cho owner (trừ khi tự like sản phẩm của mình)
       if (product.user.toString() !== userId.toString()) {
@@ -436,7 +557,11 @@ export const toggleLike = async (req, res) => {
         });
       }
 
-      return res.json({ success: true, action: "liked", likes: product.likes.length + 1 });
+      return res.json({
+        success: true,
+        action: "liked",
+        likes: product.likes.length + 1,
+      });
     }
   } catch (err) {
     return handleError(res, err);
@@ -453,8 +578,15 @@ export const getProductLikes = async (req, res) => {
       .select("likes")
       .populate("likes", "firstName lastName username profilePicture");
 
-    if (!product) return res.status(404).json({ success: false, message: "Product not found" });
-    return res.json({ success: true, data: product.likes, total: product.likes.length });
+    if (!product)
+      return res
+        .status(404)
+        .json({ success: false, message: "Product not found" });
+    return res.json({
+      success: true,
+      data: product.likes,
+      total: product.likes.length,
+    });
   } catch (err) {
     return handleError(res, err);
   }
@@ -475,19 +607,32 @@ export const updateRating = async (req, res) => {
     const { ratingsAverage, ratingsQuantity } = req.body;
 
     if (ratingsAverage === undefined || ratingsQuantity === undefined) {
-      return res.status(400).json({ success: false, message: "ratingsAverage and ratingsQuantity are required" });
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message: "ratingsAverage and ratingsQuantity are required",
+        });
     }
     if (ratingsAverage < 1 || ratingsAverage > 5) {
-      return res.status(400).json({ success: false, message: "ratingsAverage must be between 1 and 5" });
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message: "ratingsAverage must be between 1 and 5",
+        });
     }
 
     const product = await Product.findByIdAndUpdate(
       req.params.id,
       { $set: { ratingsAverage, ratingsQuantity } },
-      { new: true, runValidators: true }
+      { new: true, runValidators: true },
     ).select("ratingsAverage ratingsQuantity");
 
-    if (!product) return res.status(404).json({ success: false, message: "Product not found" });
+    if (!product)
+      return res
+        .status(404)
+        .json({ success: false, message: "Product not found" });
     return res.json({ success: true, data: product });
   } catch (err) {
     return handleError(res, err);
@@ -539,8 +684,13 @@ export const adminGetAllProducts = async (req, res) => {
  */
 export const toggleProductActive = async (req, res) => {
   try {
-    const product = await Product.findById(req.params.id).select("isActive name");
-    if (!product) return res.status(404).json({ success: false, message: "Product not found" });
+    const product = await Product.findById(req.params.id).select(
+      "isActive name",
+    );
+    if (!product)
+      return res
+        .status(404)
+        .json({ success: false, message: "Product not found" });
 
     product.isActive = !product.isActive;
     await product.save();
@@ -561,39 +711,47 @@ export const toggleProductActive = async (req, res) => {
  */
 export const getProductStats = async (req, res) => {
   try {
-    const [categoryStats, topSelling, lowStock, totalStats] = await Promise.all([
-      // Thống kê theo category
-      Product.aggregate([
-        { $match: { isActive: true } },
-        { $group: { _id: "$category", count: { $sum: 1 }, totalSold: { $sum: "$sold" } } },
-        { $sort: { count: -1 } },
-      ]),
-
-      // Top 5 bán chạy nhất
-      Product.find({ isActive: true })
-        .select("name category sold stock ratingsAverage images")
-        .sort({ sold: -1 })
-        .limit(5),
-
-      // Sản phẩm sắp hết hàng (stock <= 5)
-      Product.find({ isActive: true, stock: { $lte: 5 } })
-        .select("name category stock images")
-        .sort({ stock: 1 })
-        .limit(10),
-
-      // Tổng quan
-      Product.aggregate([
-        {
-          $group: {
-            _id: null,
-            totalProducts: { $sum: 1 },
-            activeProducts: { $sum: { $cond: ["$isActive", 1, 0] } },
-            totalSold: { $sum: "$sold" },
-            avgRating: { $avg: "$ratingsAverage" },
+    const [categoryStats, topSelling, lowStock, totalStats] = await Promise.all(
+      [
+        // Thống kê theo category
+        Product.aggregate([
+          { $match: { isActive: true } },
+          {
+            $group: {
+              _id: "$category",
+              count: { $sum: 1 },
+              totalSold: { $sum: "$sold" },
+            },
           },
-        },
-      ]),
-    ]);
+          { $sort: { count: -1 } },
+        ]),
+
+        // Top 5 bán chạy nhất
+        Product.find({ isActive: true })
+          .select("name category sold stock ratingsAverage images")
+          .sort({ sold: -1 })
+          .limit(5),
+
+        // Sản phẩm sắp hết hàng (stock <= 5)
+        Product.find({ isActive: true, stock: { $lte: 5 } })
+          .select("name category stock images")
+          .sort({ stock: 1 })
+          .limit(10),
+
+        // Tổng quan
+        Product.aggregate([
+          {
+            $group: {
+              _id: null,
+              totalProducts: { $sum: 1 },
+              activeProducts: { $sum: { $cond: ["$isActive", 1, 0] } },
+              totalSold: { $sum: "$sold" },
+              avgRating: { $avg: "$ratingsAverage" },
+            },
+          },
+        ]),
+      ],
+    );
 
     return res.json({
       success: true,

@@ -7,9 +7,12 @@ import {
   getAddresses, addAddress, updateAddress, deleteAddress, setDefaultAddress,
   toggleFollow, getFollowers, getFollowing,
   sendFriendRequest, acceptFriendRequest, removeFriend, getFriends,
+  syncUser,
 } from "../controllers/user.controller.js";
  
 const router = express.Router();
+
+router.post("/sync", syncUser);
  
 // Auth guard cho tất cả routes
 router.use(requireAuth());

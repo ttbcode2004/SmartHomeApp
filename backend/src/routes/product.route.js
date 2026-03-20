@@ -20,6 +20,7 @@ import {
   toggleProductActive,
   getProductStats,
 } from "../controllers/product.controller.js";
+import upload from "../middleware/upload.middleware.js";
 
 const router = express.Router();
 
@@ -34,11 +35,11 @@ router.get("/:id/likes", getProductLikes);
 router.get("/:id", getProductById);
 
 /* ================================================================
-   AUTH – cần đăng nhập
+AUTH – cần đăng nhập
 ================================================================ */
 router.use(requireAuth());
 
-router.post("/", createProduct);
+router.post("/", upload.array("images", 10), createProduct);
 router.get("/me/products", getMyProducts);          // trước /:id để không bị conflict
 router.patch("/:id", updateProduct);
 router.delete("/:id", deleteProduct);

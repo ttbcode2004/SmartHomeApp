@@ -14,6 +14,78 @@ const handleError = (res, err, msg = "Server error") => {
 ================================================================ */
 
 /**
+ * POST /api/users/sync
+ * Đồng bộ user từ Clerk sang MongoDB sau khi đăng nhập / đăng ký
+ * Body: { clerkId, email, firstName, lastName, profilePicture }
+ */
+export const syncUser = async (req, res) => {
+  try {
+    const { clerkId, email, firstName, lastName, profilePicture } = req.body;
+
+    if (!clerkId || !email) {
+      return res.status(400).json({ success: false, message: "clerkId and email are required" });
+    }
+
+    // Tìm user theo clerkId, nếu chưa có thì tạo mới (upsert)
+    const user = await User.findOneAndUpdate(
+      { clerkId },
+      {
+        $setOnInsert: {
+          clerkId,
+          email,
+          firstName: firstName ?? "",
+          lastName: lastName ?? "",
+          profilePicture: profilePicture ?? "",
+          username: email.split("@")[0] + "_" + Math.random().toString(36).slice(2, 7),
+          role: "user",
+        },
+        // Chỉ cập nhật những field có thể thay đổi từ provider (avatar, tên)
+        $set: {
+          ...(firstName && { firstName }),
+          ...(lastName && { lastName }),
+          ...(profilePicture && { profilePicture }),
+        },
+      },
+      { new: true, upsert: true, runValidators: true, setDefaultsOnInsert: true }
+    ).select("-__v -cart -wishlist -addresses");
+
+    return res.status(200).json({ success: true, data: user });
+  } catch (err) {
+    if (err.code === 11000) {
+      // username trùng → thử lại với suffix ngẫu nhiên khác
+      try {
+        const { clerkId, email, firstName, lastName, profilePicture } = req.body;
+        const user = await User.findOneAndUpdate(
+          { clerkId },
+          {
+            $setOnInsert: {
+              clerkId,
+              email,
+              firstName: firstName ?? "",
+              lastName: lastName ?? "",
+              profilePicture: profilePicture ?? "",
+              username: email.split("@")[0] + "_" + Date.now().toString(36),
+              role: "user",
+            },
+            $set: {
+              ...(firstName && { firstName }),
+              ...(lastName && { lastName }),
+              ...(profilePicture && { profilePicture }),
+            },
+          },
+          { new: true, upsert: true, runValidators: true, setDefaultsOnInsert: true }
+        ).select("-__v -cart -wishlist -addresses");
+
+        return res.status(200).json({ success: true, data: user });
+      } catch (retryErr) {
+        return handleError(res, retryErr);
+      }
+    }
+    return handleError(res, err);
+  }
+};
+
+/**
  * GET /api/users/me
  * Lấy thông tin user hiện tại (từ clerkId trong req.auth)
  */
