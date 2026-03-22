@@ -20,7 +20,7 @@ export default function SignUpScreen() {
   const { colors } = useTheme();
   const { signUpWithEmail, verifyEmailCode, signInWithOAuth, isLoading } =
     useSocialAuth();
-const { signUp } = useSignUp(); 
+  const { signUp } = useSignUp(); 
   const [firstName, setFirstName] = useState("bach");
   const [lastName, setLastName] = useState("bach");
   const [email, setEmail] = useState("13579bach@gmail.com");
@@ -28,6 +28,7 @@ const { signUp } = useSignUp();
   const [showPassword, setShowPassword] = useState(false);
   const [otp, setOtp] = useState("");
   const [pendingVerification, setPendingVerification] = useState(false);
+  
   const handleSignUp = async () => {
   try {
     await signUpWithEmail(email, password, firstName, lastName);

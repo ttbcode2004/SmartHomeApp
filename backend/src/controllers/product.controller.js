@@ -240,36 +240,22 @@ export const getRelatedProducts = async (req, res) => {
 export const createProduct = async (req, res) => {
   const { userId } = getAuth(req);
   const { name, summary, description, price, category, stock } = req.body;
-  const imagesFile = req.files;
-
-  if (
-    !name ||
-    !summary ||
-    !description ||
-    price === undefined ||
-    !images?.length ||
-    !category ||
-    !imagesFile?.length
-  ) {
-    return res
-      .status(400)
-      .json({ success: false, message: "Missing required fields" });
+  const imagesFile = req.files; // mảng file
+ 
+  // ✅ Fix 1: Kiểm tra đúng tên biến
+  if (!name || !summary || !description || price === undefined || !category || !imagesFile?.length) {
+    return res.status(400).json({ success: false, message: "Missing required fields" });
   }
 
   const user = await User.findOne({ clerkId: userId });
   if (!user) return res.status(404).json({ error: "User not found" });
 
-  let imagesUrl = "";
-
-  // upload image to Cloudinary if provided
-  if (imagesFile) {
-    try {
-      // convert buffer to base64 for cloudinary
-      const base64Image = `data:${imageFile.mimetype};base64,${imageFile.buffer.toString(
-        "base64",
-      )}`;
-
-      const uploadResponse = await cloudinary.uploader.upload(base64Image, {
+  // ✅ Fix 2: Upload NHIỀU ảnh bằng Promise.all
+  let imagesUrl = [];
+  try {
+    const uploadPromises = imagesFile.map((file) => {
+      const base64Image = `data:${file.mimetype};base64,${file.buffer.toString("base64")}`;
+      return cloudinary.uploader.upload(base64Image, {
         folder: "social_media_posts",
         resource_type: "image",
         transformation: [
@@ -278,11 +264,13 @@ export const createProduct = async (req, res) => {
           { format: "auto" },
         ],
       });
-      imagesUrl = uploadResponse.secure_url;
-    } catch (uploadError) {
-      console.error("Cloudinary upload error:", uploadError);
-      return res.status(400).json({ error: "Failed to upload image" });
-    }
+    });
+
+    const results = await Promise.all(uploadPromises);
+    imagesUrl = results.map((r) => r.secure_url);
+  } catch (uploadError) {
+    console.error("Cloudinary upload error:", uploadError);
+    return res.status(400).json({ error: "Failed to upload image" });
   }
 
   const product = await Product.create({
@@ -291,14 +279,13 @@ export const createProduct = async (req, res) => {
     summary,
     description,
     price,
-    images: [imagesUrl],
+    images: imagesUrl, // ✅ Lưu mảng URL
     category,
     stock: stock || 0,
   });
 
   return res.status(201).json({ success: true, data: product });
 };
-
 /**
  * GET /api/products/me
  * Lấy danh sách sản phẩm của user hiện tại (bao gồm cả inactive)

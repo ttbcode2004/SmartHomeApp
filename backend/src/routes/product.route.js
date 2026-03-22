@@ -37,9 +37,9 @@ router.get("/:id", getProductById);
 /* ================================================================
 AUTH – cần đăng nhập
 ================================================================ */
+router.post("/", upload.array("images", 10), createProduct);
 router.use(requireAuth());
 
-router.post("/", upload.array("images", 10), createProduct);
 router.get("/me/products", getMyProducts);          // trước /:id để không bị conflict
 router.patch("/:id", updateProduct);
 router.delete("/:id", deleteProduct);

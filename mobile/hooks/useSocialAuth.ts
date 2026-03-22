@@ -1,6 +1,6 @@
 import * as WebBrowser from "expo-web-browser";
 import * as Linking from "expo-linking";
-import { useSSO, useSignIn, useSignUp, useAuth } from "@clerk/expo";
+import { useSSO, useSignIn, useSignUp } from "@clerk/expo";
 import { useCallback, useState } from "react";
 import { Alert } from "react-native";
 import { useRouter } from "expo-router";
@@ -54,22 +54,51 @@ const useSocialAuth = (): UseSocialAuthReturn => {
     [startSSOFlow]
   );
 
-  /* Email Sign-In - dùng signIn.password() theo v3 */
+  /* Email Sign-In */
   const signInWithEmail = useCallback(
     async (email: string, password: string) => {
       if (!signIn) return;
       try {
         const { error } = await signIn.password({
-          identifier: email,
+          emailAddress: email,
           password,
         });
+
         if (error) {
           Alert.alert(
             "Đăng nhập thất bại",
             error.message ?? "Email hoặc mật khẩu không đúng."
           );
+          return;
         }
-        // Clerk v3 tự navigate sau khi sign in thành công
+
+        // ✅ Đăng nhập thành công
+        if (signIn.status === "complete") {
+          await signIn.finalize({
+            navigate: ({ session }) => {
+              if (session?.currentTask) {
+                console.log(session?.currentTask);
+                return;
+              }
+              router.replace("/(tabs)");
+            },
+          });
+          return;
+        }
+
+        // ✅ Yêu cầu xác thực 2 bước
+      if (signIn.status === "needs_second_factor") {
+  const factors = signIn.supportedSecondFactors ?? [];
+  const emailFactor = factors.find((f) => f.strategy === "email_code");
+
+  if (emailFactor) {
+    // ✅ Đúng method cho Clerk v3
+    await (signIn as any).sendMFAEmailCode();
+    router.push("/two-factor");
+  } else {
+    Alert.alert("Lỗi", "Phương thức xác thực 2 bước không được hỗ trợ.");
+  }
+}
       } catch (err: any) {
         Alert.alert(
           "Đăng nhập thất bại",
@@ -77,10 +106,10 @@ const useSocialAuth = (): UseSocialAuthReturn => {
         );
       }
     },
-    [signIn]
+    [signIn, router]  // ✅ thêm router vào deps
   );
 
-  /* Email Sign-Up - dùng signUp.password() theo v3 */
+  /* Email Sign-Up */
   const signUpWithEmail = useCallback(
     async (
       email: string,
@@ -103,7 +132,6 @@ const useSocialAuth = (): UseSocialAuthReturn => {
           return;
         }
 
-        // Gửi OTP xác minh email
         await signUp.verifications.sendEmailCode();
       } catch (err: any) {
         console.error("[SignUp]", JSON.stringify(err, null, 2));
@@ -113,33 +141,26 @@ const useSocialAuth = (): UseSocialAuthReturn => {
     [signUp]
   );
 
-  /* Email OTP Verify - dùng signUp.verifications.verifyEmailCode() theo v3 */
+  /* Email OTP Verify */
   const verifyEmailCode = useCallback(
     async (code: string) => {
       if (!signUp) return;
-      console.log('====================================');
-      console.log("code", code);
-      console.log('====================================');
       try {
         await signUp.verifications.verifyEmailCode({ code });
 
         if (signUp.status === "complete") {
           await signUp.finalize({
-            navigate: ({ session, decorateUrl }) => {
+            navigate: ({ session }) => {
               if (session?.currentTask) {
                 console.log(session?.currentTask);
                 return;
               }
-              // React Native: dùng router thay vì window.location
               router.replace("/(tabs)");
             },
           });
         } else {
           console.error("Sign-up không hoàn tất:", signUp.status);
-          Alert.alert(
-            "Xác thực thất bại",
-            "Mã OTP không hợp lệ hoặc đã hết hạn."
-          );
+          Alert.alert("Xác thực thất bại", "Mã OTP không hợp lệ hoặc đã hết hạn.");
         }
       } catch (err: any) {
         console.error("[Verify]", JSON.stringify(err, null, 2));
@@ -158,7 +179,7 @@ const useSocialAuth = (): UseSocialAuthReturn => {
     await signUp.verifications.sendEmailCode();
   }, [signUp]);
 
-  /* Phone */
+  /* Phone (chưa hỗ trợ) */
   const sendPhoneCode = useCallback(async (_phoneNumber: string) => {
     Alert.alert("Thông báo", "Tính năng đăng nhập bằng SĐT chưa hỗ trợ.");
   }, []);

@@ -9,7 +9,7 @@ import {
   ActivityIndicator,
   ImageBackground,
 } from "react-native";
-import { Link, useRouter } from "expo-router";
+import { Link} from "expo-router";
 import { useState } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import useSocialAuth from "@/hooks/useSocialAuth";
@@ -41,26 +41,17 @@ const OAuthButton = ({
 
 export default function SignInScreen() {
   const { colors } = useTheme();
-  const router = useRouter();
   const {
     signInWithOAuth,
     signInWithEmail,
-    sendPhoneCode,
-    verifyPhoneCode,
     isLoading,
-    pendingVerification,
   } = useSocialAuth();
 
-  const [tab, setTab] = useState<"email" | "phone">("email");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [phone, setPhone] = useState("");
-  const [otp, setOtp] = useState("");
 
   const handleEmailSignIn = () => signInWithEmail(email, password);
-  const handleSendCode = () => sendPhoneCode(phone);
-  const handleVerifyCode = () => verifyPhoneCode(otp);
 
   return (
     <ImageBackground
@@ -88,195 +79,76 @@ export default function SignInScreen() {
               </Text>
             </View>
 
-            {/* Tab Switcher */}
-            <View
-              className="flex-row rounded-xl mb-6"
-              style={{ backgroundColor: colors.surface }}
-            >
-              {(["email", "phone"] as const).map((t) => (
+            <View className="gap-6 mb-5">
+              <View
+                className="flex-row items-center rounded-xl px-4 gap-3 border"
+                style={{
+                  borderColor: colors.border,
+                  backgroundColor: colors.backgrounds.input,
+                }}
+              >
+                <Ionicons
+                  name="mail-outline"
+                  size={22}
+                  color={colors.textMuted}
+                />
+                <TextInput
+                  placeholder="Email"
+                  placeholderTextColor={colors.textMuted}
+                  value={email}
+                  onChangeText={setEmail}
+                  autoCapitalize="none"
+                  keyboardType="email-address"
+                  className="flex-1 py-4 text-base"
+                  style={{ color: colors.text }}
+                />
+              </View>
+              <View
+                className="flex-row items-center rounded-xl px-4 gap-3 border"
+                style={{
+                  borderColor: colors.border,
+                  backgroundColor: colors.backgrounds.input,
+                }}
+              >
+                <Ionicons
+                  name="lock-closed-outline"
+                  size={22}
+                  color={colors.textMuted}
+                />
+                <TextInput
+                  placeholder="Mật khẩu"
+                  placeholderTextColor={colors.textMuted}
+                  value={password}
+                  onChangeText={setPassword}
+                  secureTextEntry={!showPassword}
+                  className="flex-1 py-4 text-base"
+                  style={{ color: colors.text }}
+                />
                 <TouchableOpacity
-                  key={t}
-                  onPress={() => setTab(t)}
-                  className="flex-1 py-2.5 rounded-xl items-center"
-                  style={{
-                    backgroundColor: tab === t ? colors.primary : "transparent",
-                  }}
-                >
-                  <Text
-                    className="text-sm font-semibold"
-                    style={{ color: tab === t ? "#fff" : colors.textMuted }}
-                  >
-                    {t === "email" ? "Email" : "Số điện thoại"}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            {/* Email Form */}
-            {tab === "email" && (
-              <View className="gap-6 mb-5">
-                <View
-                  className="flex-row items-center rounded-xl px-4 gap-3 border"
-                  style={{
-                    borderColor: colors.border,
-                    backgroundColor: colors.backgrounds.input,
-                  }}
+                  onPress={() => setShowPassword(!showPassword)}
                 >
                   <Ionicons
-                    name="mail-outline"
+                    name={showPassword ? "eye-off-outline" : "eye-outline"}
                     size={22}
                     color={colors.textMuted}
                   />
-                  <TextInput
-                    placeholder="Email"
-                    placeholderTextColor={colors.textMuted}
-                    value={email}
-                    onChangeText={setEmail}
-                    autoCapitalize="none"
-                    keyboardType="email-address"
-                    className="flex-1 py-4 text-base"
-                    style={{ color: colors.text }}
-                  />
-                </View>
-                <View
-                  className="flex-row items-center rounded-xl px-4 gap-3 border"
-                  style={{
-                    borderColor: colors.border,
-                    backgroundColor: colors.backgrounds.input,
-                  }}
-                >
-                  <Ionicons
-                    name="lock-closed-outline"
-                    size={22}
-                    color={colors.textMuted}
-                  />
-                  <TextInput
-                    placeholder="Mật khẩu"
-                    placeholderTextColor={colors.textMuted}
-                    value={password}
-                    onChangeText={setPassword}
-                    secureTextEntry={!showPassword}
-                    className="flex-1 py-4 text-base"
-                    style={{ color: colors.text }}
-                  />
-                  <TouchableOpacity
-                    onPress={() => setShowPassword(!showPassword)}
-                  >
-                    <Ionicons
-                      name={showPassword ? "eye-off-outline" : "eye-outline"}
-                      size={22}
-                      color={colors.textMuted}
-                    />
-                  </TouchableOpacity>
-                </View>
-                <TouchableOpacity
-                  onPress={handleEmailSignIn}
-                  disabled={isLoading}
-                  className="rounded-xl py-4 items-center mt-1 "
-                  style={{ backgroundColor: colors.primary }}
-                >
-                  {isLoading ? (
-                    <ActivityIndicator color="#fff" />
-                  ) : (
-                    <Text className="text-white font-bold text-base">
-                      Đăng nhập
-                    </Text>
-                  )}
                 </TouchableOpacity>
               </View>
-            )}
-
-            {/* Phone Form */}
-            {tab === "phone" && (
-              <View className="gap-3 mb-5">
-                {!pendingVerification ? (
-                  <>
-                    <View
-                      className="flex-row items-center rounded-xl px-4 gap-3 border"
-                      style={{
-                        borderColor: colors.border,
-                        backgroundColor: colors.backgrounds.input,
-                      }}
-                    >
-                      <Ionicons
-                        name="call-outline"
-                        size={22}
-                        color={colors.textMuted}
-                      />
-                      <TextInput
-                        placeholder="+84 xxx xxx xxx"
-                        placeholderTextColor={colors.textMuted}
-                        value={phone}
-                        onChangeText={setPhone}
-                        keyboardType="phone-pad"
-                        className="flex-1 py-4 text-base"
-                        style={{ color: colors.text }}
-                      />
-                    </View>
-                    <TouchableOpacity
-                      onPress={handleSendCode}
-                      disabled={isLoading}
-                      className="rounded-xl py-4 items-center"
-                      style={{ backgroundColor: colors.primary }}
-                    >
-                      {isLoading ? (
-                        <ActivityIndicator color="#fff" />
-                      ) : (
-                        <Text className="text-white font-bold text-base">
-                          Gửi mã OTP
-                        </Text>
-                      )}
-                    </TouchableOpacity>
-                  </>
+              <TouchableOpacity
+                onPress={handleEmailSignIn}
+                disabled={isLoading}
+                className="rounded-xl py-4 items-center mt-1 "
+                style={{ backgroundColor: colors.primary }}
+              >
+                {isLoading ? (
+                  <ActivityIndicator color="#fff" />
                 ) : (
-                  <>
-                    <Text
-                      className="text-sm mb-1"
-                      style={{ color: colors.textMuted }}
-                    >
-                      Nhập mã OTP đã gửi đến {phone}
-                    </Text>
-                    <View
-                      className="flex-row items-center rounded-2xl px-4 gap-3 border"
-                      style={{
-                        borderColor: colors.border,
-                        backgroundColor: colors.backgrounds.input,
-                      }}
-                    >
-                      <Ionicons
-                        name="keypad-outline"
-                        size={18}
-                        color={colors.textMuted}
-                      />
-                      <TextInput
-                        placeholder="6 chữ số"
-                        placeholderTextColor={colors.textMuted}
-                        value={otp}
-                        onChangeText={setOtp}
-                        keyboardType="number-pad"
-                        maxLength={6}
-                        className="flex-1 py-4 text-sm"
-                        style={{ color: colors.text }}
-                      />
-                    </View>
-                    <TouchableOpacity
-                      onPress={handleVerifyCode}
-                      disabled={isLoading}
-                      className="rounded-2xl py-4 items-center"
-                      style={{ backgroundColor: colors.primary }}
-                    >
-                      {isLoading ? (
-                        <ActivityIndicator color="#fff" />
-                      ) : (
-                        <Text className="text-white font-bold text-base">
-                          Xác nhận
-                        </Text>
-                      )}
-                    </TouchableOpacity>
-                  </>
+                  <Text className="text-white font-bold text-base">
+                    Đăng nhập
+                  </Text>
                 )}
-              </View>
-            )}
+              </TouchableOpacity>
+            </View>
 
             {/* Divider */}
             <View className="flex-row items-center gap-3 mb-5">
