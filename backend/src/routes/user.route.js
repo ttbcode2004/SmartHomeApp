@@ -1,60 +1,89 @@
 import express from "express";
-import { requireAuth } from "@clerk/express"; // hoặc middleware của bạn
 import {
-  getMe, getUserById, updateMe, deleteMe, getAllUsers, changeUserRole,
-  getCart, addToCart, updateCartItem, removeFromCart, clearCart,
-  getWishlist, toggleWishlist, removeFromWishlist,
-  getAddresses, addAddress, updateAddress, deleteAddress, setDefaultAddress,
-  toggleFollow, getFollowers, getFollowing,
-  sendFriendRequest, acceptFriendRequest, removeFriend, getFriends,
+  getMe,
+  getUserById,
+  updateMe,
+  deleteMe,
+  getAllUsers,
+  changeUserRole,
+  getCart,
+  addToCart,
+  updateCartItem,
+  removeFromCart,
+  clearCart,
+  getWishlist,
+  toggleWishlist,
+  removeFromWishlist,
+  getAddresses,
+  addAddress,
+  updateAddress,
+  deleteAddress,
+  setDefaultAddress,
+  toggleFollow,
+  getFollowers,
+  getFollowing,
+  sendFriendRequest,
+  acceptFriendRequest,
+  removeFriend,
+  getFriends,
   syncUser,
+  cancelFriendRequest,
+  rejectFriendRequest,
 } from "../controllers/user.controller.js";
- 
+import { protectRoute } from "../middleware/auth.middleware.js";
+import upload from "../middleware/upload.middleware.js";
+
 const router = express.Router();
 
+// Public
 router.post("/sync", syncUser);
- 
-// Auth guard cho tất cả routes
-router.use(requireAuth());
- 
-/* --- Profile --- */
-router.get("/me", getMe);
-router.patch("/me", updateMe);
-router.delete("/me", deleteMe);
-router.get("/:id", getUserById);
- 
+
 /* --- Admin --- */
-router.get("/", getAllUsers);               // Thêm isAdmin middleware nếu cần
-router.patch("/:id/role", changeUserRole); // Thêm isAdmin middleware nếu cần
- 
+router.get("/", protectRoute, getAllUsers);
+router.patch("/:id/role", protectRoute, changeUserRole);
+
+/* --- Profile (me) --- */
+router.get("/me", protectRoute, getMe);
+router.patch(
+  "/me",
+  protectRoute,
+  upload.fields([
+    { name: "profilePicture", maxCount: 1 },
+    { name: "bannerImage", maxCount: 1 },
+  ]),
+  updateMe,
+);
+router.delete("/me", protectRoute, deleteMe);
+
 /* --- Cart --- */
-router.get("/me/cart", getCart);
-router.post("/me/cart", addToCart);
-router.patch("/me/cart/:productId", updateCartItem);
-router.delete("/me/cart/:productId", removeFromCart);
-router.delete("/me/cart", clearCart);
- 
+router.get("/me/cart", protectRoute, getCart);
+router.post("/me/cart", protectRoute, addToCart);
+router.patch("/me/cart/:productId", protectRoute, updateCartItem);
+router.delete("/me/cart/:productId", protectRoute, removeFromCart);
+router.delete("/me/cart", protectRoute, clearCart);
+
 /* --- Wishlist --- */
-router.get("/me/wishlist", getWishlist);
-router.post("/me/wishlist", toggleWishlist);
-router.delete("/me/wishlist/:productId", removeFromWishlist);
- 
+router.get("/me/wishlist", protectRoute, getWishlist);
+router.post("/me/wishlist", protectRoute, toggleWishlist);
+router.delete("/me/wishlist/:productId", protectRoute, removeFromWishlist);
+
 /* --- Address --- */
-router.get("/me/addresses", getAddresses);
-router.post("/me/addresses", addAddress);
-router.patch("/me/addresses/:index", updateAddress);
-router.patch("/me/addresses/:index/default", setDefaultAddress);
-router.delete("/me/addresses/:index", deleteAddress);
- 
-/* --- Social: Follow --- */
-router.post("/:id/follow", toggleFollow);
-router.get("/:id/followers", getFollowers);
-router.get("/:id/following", getFollowing);
- 
-/* --- Social: Friend --- */
-router.post("/:id/friend-request", sendFriendRequest);
-router.post("/:id/friend-accept", acceptFriendRequest);
-router.delete("/:id/friend", removeFriend);
-router.get("/:id/friends", getFriends);
- 
+router.get("/me/addresses", protectRoute, getAddresses);
+router.post("/me/addresses", protectRoute, addAddress);
+router.patch("/me/addresses/:index/default", protectRoute, setDefaultAddress); // đặt trước /:index
+router.patch("/me/addresses/:index", protectRoute, updateAddress);
+router.delete("/me/addresses/:index", protectRoute, deleteAddress);
+
+/* --- Dynamic :id — đặt CUỐI CÙNG --- */
+router.get("/:id/followers", protectRoute, getFollowers);
+router.get("/:id/following", protectRoute, getFollowing);
+router.get("/:id/friends", protectRoute, getFriends);
+router.post("/:id/follow", protectRoute, toggleFollow);
+router.post("/:id/friend-request", protectRoute, sendFriendRequest);
+router.post("/:id/friend-accept", protectRoute, acceptFriendRequest);
+router.post("/:id/friend-cancel", protectRoute,  cancelFriendRequest);
+router.post("/:id/friend-reject", protectRoute, rejectFriendRequest);
+router.delete("/:id/friend", protectRoute, removeFriend);
+router.get("/:id", protectRoute, getUserById); // ← luôn đặt cuối cùng
+
 export default router;

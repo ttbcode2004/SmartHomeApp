@@ -3,9 +3,15 @@ import { useAuth } from "@clerk/expo";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Feather from "@expo/vector-icons/build/Feather";
 
+import useTheme from "@/hooks/useTheme";
+import useCurrentUser from "@/hooks/useCurrentUser";
+
 export default function TabsLayout() {
-    const insets = useSafeAreaInsets();
+  const insets = useSafeAreaInsets();
   const { isSignedIn } = useAuth();
+  const { colors } = useTheme(); 
+
+  useCurrentUser();
 
   if (!isSignedIn) {
     return <Redirect href="/(auth)/sign-in" />;
@@ -14,12 +20,12 @@ export default function TabsLayout() {
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: "#1DA1F2",
-        tabBarInactiveTintColor: "#657786",
+        tabBarActiveTintColor: colors.primary, // 👈 dynamic
+        tabBarInactiveTintColor: colors.textMuted,
         tabBarStyle: {
-          backgroundColor: "#fff",
+          backgroundColor: colors.surface, // 👈 dynamic
           borderTopWidth: 1,
-          borderTopColor: "#E1E8ED",
+          borderTopColor: colors.border,
           height: 50 + insets.bottom,
           paddingTop: 8,
         },
@@ -30,15 +36,45 @@ export default function TabsLayout() {
         name="index"
         options={{
           title: "",
-          tabBarIcon: ({ color, size }) => <Feather name="home" size={size} color={color} />,
+          tabBarIcon: ({ color, size }) => (
+            <Feather name="home" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="notifications"
+        options={{
+          title: "",
+          tabBarIcon: ({ color, size }) => (
+            <Feather name="bell" size={size} color={color} />
+          ),
         }}
       />
       <Tabs.Screen
         name="create"
         options={{
           title: "",
-
-          tabBarIcon: ({ color, size }) => <Feather name="plus" size={size} color={color} />,
+          tabBarIcon: ({ color, size }) => (
+            <Feather name="plus" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="chat"
+        options={{
+          title: "",
+          tabBarIcon: ({ color, size }) => (
+            <Feather name="message-circle" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="profile"
+        options={{
+          title: "",
+          tabBarIcon: ({ color, size }) => (
+            <Feather name="user" size={size} color={color} />
+          ),
         }}
       />
     </Tabs>

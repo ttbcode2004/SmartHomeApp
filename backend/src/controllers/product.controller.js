@@ -1,7 +1,6 @@
 import Product from "../models/product.model.js";
 import User from "../models/user.model.js";
 import Notification from "../models/notification.model.js";
-import { getAuth } from "@clerk/express";
 import cloudinary from "../config/cloudinary.js";
 
 /* ================================================================
@@ -18,78 +17,45 @@ const handleError = (res, err, msg = "Server error") => {
    PUBLIC – AI ĐỀU CÓ THỂ XEM
 ================================================================ */
 
-/**
- * GET /api/products
- * Lấy danh sách sản phẩm với filter, sort, pagination, search
- *
- * Query params:
- *   page, limit
- *   search        – tìm theo name
- *   category      – control | led | electric | curtain | air-conditioner | camera
- *   minPrice, maxPrice
- *   sort          – price_asc | price_desc | rating | newest | best_selling
- *   inStock       – true | false
- */
 export const getProducts = async (req, res) => {
   try {
     const {
-      page = 1,
-      limit = 12,
-      search,
-      category,
-      minPrice,
-      maxPrice,
-      sort = "newest",
-      inStock,
+      page = 1, limit = 12, search, category,
+      minPrice, maxPrice, sort = "newest", inStock,
     } = req.query;
 
-    /* --- Build filter --- */
     const filter = { isActive: true };
-
-    if (search) {
-      filter.name = { $regex: search, $options: "i" };
-    }
-    if (category) {
-      filter.category = category;
-    }
+    if (search)   filter.name     = { $regex: search, $options: "i" };
+    if (category) filter.category = category;
     if (minPrice || maxPrice) {
       filter.price = {};
       if (minPrice) filter.price.$gte = Number(minPrice);
       if (maxPrice) filter.price.$lte = Number(maxPrice);
     }
-    if (inStock === "true") {
-      filter.stock = { $gt: 0 };
-    }
+    if (inStock === "true") filter.stock = { $gt: 0 };
 
-    /* --- Build sort --- */
     const sortMap = {
-      price_asc: { price: 1 },
-      price_desc: { price: -1 },
-      rating: { ratingsAverage: -1 },
-      newest: { createdAt: -1 },
+      price_asc:    { price: 1 },
+      price_desc:   { price: -1 },
+      rating:       { ratingsAverage: -1 },
+      newest:       { createdAt: -1 },
       best_selling: { sold: -1 },
     };
-    const sortQuery = sortMap[sort] || { createdAt: -1 };
 
-    /* --- Execute --- */
     const skip = (Number(page) - 1) * Number(limit);
-
     const [products, total] = await Promise.all([
       Product.find(filter)
         .select("-description -__v")
         .populate("user", "firstName lastName username profilePicture")
-        .sort(sortQuery)
+        .sort(sortMap[sort] || { createdAt: -1 })
         .skip(skip)
         .limit(Number(limit)),
       Product.countDocuments(filter),
     ]);
 
     return res.json({
-      success: true,
-      data: products,
-      total,
-      page: Number(page),
-      limit: Number(limit),
+      success: true, data: products, total,
+      page: Number(page), limit: Number(limit),
       totalPages: Math.ceil(total / Number(limit)),
     });
   } catch (err) {
@@ -97,56 +63,30 @@ export const getProducts = async (req, res) => {
   }
 };
 
-/**
- * GET /api/products/:id
- * Lấy chi tiết sản phẩm
- */
 export const getProductById = async (req, res) => {
   try {
-    const product = await Product.findOne({
-      _id: req.params.id,
-      isActive: true,
-    })
-      .populate("user", "firstName lastName username profilePicture bio")
+    const product = await Product.findOne({ _id: req.params.id, isActive: true })
+      .populate("user",  "firstName lastName username profilePicture bio")
       .populate("likes", "firstName lastName username profilePicture");
 
-    if (!product)
-      return res
-        .status(404)
-        .json({ success: false, message: "Product not found" });
+    if (!product) return res.status(404).json({ success: false, message: "Product not found" });
     return res.json({ success: true, data: product });
   } catch (err) {
     return handleError(res, err);
   }
 };
 
-/**
- * GET /api/products/category/:category
- * Lấy sản phẩm theo category
- */
 export const getProductsByCategory = async (req, res) => {
   try {
-    const validCategories = [
-      "control",
-      "led",
-      "electric",
-      "curtain",
-      "air-conditioner",
-      "camera",
-    ];
+    const validCategories = ["control", "led", "electric", "curtain", "air-conditioner", "camera"];
     if (!validCategories.includes(req.params.category)) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Invalid category" });
+      return res.status(400).json({ success: false, message: "Invalid category" });
     }
 
     const { page = 1, limit = 12, sort = "newest" } = req.query;
     const sortMap = {
-      price_asc: { price: 1 },
-      price_desc: { price: -1 },
-      rating: { ratingsAverage: -1 },
-      newest: { createdAt: -1 },
-      best_selling: { sold: -1 },
+      price_asc: { price: 1 }, price_desc: { price: -1 },
+      rating: { ratingsAverage: -1 }, newest: { createdAt: -1 }, best_selling: { sold: -1 },
     };
 
     const [products, total] = await Promise.all([
@@ -154,63 +94,45 @@ export const getProductsByCategory = async (req, res) => {
         .select("-description -__v")
         .populate("user", "firstName lastName username profilePicture")
         .sort(sortMap[sort] || { createdAt: -1 })
-        .skip((page - 1) * Number(limit))
+        .skip((Number(page) - 1) * Number(limit))
         .limit(Number(limit)),
       Product.countDocuments({ category: req.params.category, isActive: true }),
     ]);
 
     return res.json({
-      success: true,
-      data: products,
-      total,
-      page: Number(page),
-      totalPages: Math.ceil(total / Number(limit)),
+      success: true, data: products, total,
+      page: Number(page), totalPages: Math.ceil(total / Number(limit)),
     });
   } catch (err) {
     return handleError(res, err);
   }
 };
 
-/**
- * GET /api/products/user/:userId
- * Lấy tất cả sản phẩm của một user (public shop)
- */
 export const getProductsByUser = async (req, res) => {
   try {
     const { page = 1, limit = 12 } = req.query;
-
     const [products, total] = await Promise.all([
       Product.find({ user: req.params.userId, isActive: true })
         .select("-description -__v")
         .sort({ createdAt: -1 })
-        .skip((page - 1) * Number(limit))
+        .skip((Number(page) - 1) * Number(limit))
         .limit(Number(limit)),
       Product.countDocuments({ user: req.params.userId, isActive: true }),
     ]);
 
     return res.json({
-      success: true,
-      data: products,
-      total,
-      page: Number(page),
-      totalPages: Math.ceil(total / Number(limit)),
+      success: true, data: products, total,
+      page: Number(page), totalPages: Math.ceil(total / Number(limit)),
     });
   } catch (err) {
     return handleError(res, err);
   }
 };
 
-/**
- * GET /api/products/related/:id
- * Lấy sản phẩm liên quan (cùng category, loại trừ chính nó)
- */
 export const getRelatedProducts = async (req, res) => {
   try {
     const product = await Product.findById(req.params.id).select("category");
-    if (!product)
-      return res
-        .status(404)
-        .json({ success: false, message: "Product not found" });
+    if (!product) return res.status(404).json({ success: false, message: "Product not found" });
 
     const related = await Product.find({
       category: product.category,
@@ -228,35 +150,37 @@ export const getRelatedProducts = async (req, res) => {
   }
 };
 
+export const getProductLikes = async (req, res) => {
+  try {
+    const product = await Product.findById(req.params.id)
+      .select("likes")
+      .populate("likes", "firstName lastName username profilePicture");
+
+    if (!product) return res.status(404).json({ success: false, message: "Product not found" });
+    return res.json({ success: true, data: product.likes, total: product.likes.length });
+  } catch (err) {
+    return handleError(res, err);
+  }
+};
+
 /* ================================================================
    AUTH – USER TẠO & QUẢN LÝ SẢN PHẨM CỦA MÌNH
 ================================================================ */
 
-/**
- * POST /api/products
- * Tạo sản phẩm mới
- * Body: { name, summary, description, price, images[], category, stock }
- */
 export const createProduct = async (req, res) => {
-  const { userId } = getAuth(req);
-  const { name, summary, description, price, category, stock } = req.body;
-  const imagesFile = req.files; // mảng file
- 
-  // ✅ Fix 1: Kiểm tra đúng tên biến
-  if (!name || !summary || !description || price === undefined || !category || !imagesFile?.length) {
-    return res.status(400).json({ success: false, message: "Missing required fields" });
-  }
-
-  const user = await User.findOne({ clerkId: userId });
-  if (!user) return res.status(404).json({ error: "User not found" });
-
-  // ✅ Fix 2: Upload NHIỀU ảnh bằng Promise.all
-  let imagesUrl = [];
   try {
+    const { name, summary, description, price, category, stock } = req.body;
+    const imagesFile = req.files;
+
+    if (!name || !summary || !description || price === undefined || !category || !imagesFile?.length) {
+      return res.status(400).json({ success: false, message: "Missing required fields" });
+    }
+
+    // Upload ảnh lên Cloudinary
     const uploadPromises = imagesFile.map((file) => {
       const base64Image = `data:${file.mimetype};base64,${file.buffer.toString("base64")}`;
       return cloudinary.uploader.upload(base64Image, {
-        folder: "social_media_posts",
+        folder: "smartHomeApp/products",
         resource_type: "image",
         transformation: [
           { width: 800, height: 600, crop: "limit" },
@@ -266,110 +190,64 @@ export const createProduct = async (req, res) => {
       });
     });
 
-    const results = await Promise.all(uploadPromises);
-    imagesUrl = results.map((r) => r.secure_url);
-  } catch (uploadError) {
-    console.error("Cloudinary upload error:", uploadError);
-    return res.status(400).json({ error: "Failed to upload image" });
+    const results  = await Promise.all(uploadPromises);
+    const imagesUrl = results.map((r) => r.secure_url);
+
+    const product = await Product.create({
+      user:        req.userId,   // ← từ middleware
+      name, summary, description, price,
+      images:      imagesUrl,
+      category,
+      stock:       stock || 0,
+    });
+
+    return res.status(201).json({ success: true, data: product });
+  } catch (err) {
+    return handleError(res, err);
   }
-
-  const product = await Product.create({
-    user: user._id,
-    name,
-    summary,
-    description,
-    price,
-    images: imagesUrl, // ✅ Lưu mảng URL
-    category,
-    stock: stock || 0,
-  });
-
-  return res.status(201).json({ success: true, data: product });
 };
-/**
- * GET /api/products/me
- * Lấy danh sách sản phẩm của user hiện tại (bao gồm cả inactive)
- */
+
 export const getMyProducts = async (req, res) => {
   try {
-    const currentUser = await User.findOne({ clerkId: req.auth.userId }).select(
-      "_id",
-    );
-    if (!currentUser)
-      return res
-        .status(404)
-        .json({ success: false, message: "User not found" });
-
     const { page = 1, limit = 12, isActive } = req.query;
-    const filter = { user: currentUser._id };
+    const filter = { user: req.userId };  // ← từ middleware
     if (isActive !== undefined) filter.isActive = isActive === "true";
 
     const [products, total] = await Promise.all([
       Product.find(filter)
         .sort({ createdAt: -1 })
-        .skip((page - 1) * Number(limit))
+        .skip((Number(page) - 1) * Number(limit))
         .limit(Number(limit)),
       Product.countDocuments(filter),
     ]);
 
     return res.json({
-      success: true,
-      data: products,
-      total,
-      page: Number(page),
-      totalPages: Math.ceil(total / Number(limit)),
+      success: true, data: products, total,
+      page: Number(page), totalPages: Math.ceil(total / Number(limit)),
     });
   } catch (err) {
     return handleError(res, err);
   }
 };
 
-/**
- * PATCH /api/products/:id
- * Cập nhật sản phẩm (chỉ owner hoặc admin)
- * Body: bất kỳ field nào cần update
- */
 export const updateProduct = async (req, res) => {
   try {
-    const currentUser = await User.findOne({ clerkId: req.auth.userId }).select(
-      "_id role",
-    );
-    if (!currentUser)
-      return res
-        .status(404)
-        .json({ success: false, message: "User not found" });
-
     const product = await Product.findById(req.params.id);
-    if (!product)
-      return res
-        .status(404)
-        .json({ success: false, message: "Product not found" });
+    if (!product) return res.status(404).json({ success: false, message: "Product not found" });
 
-    // Chỉ owner hoặc admin mới được update
-    const isOwner = product.user.toString() === currentUser._id.toString();
-    if (!isOwner && currentUser.role !== "admin") {
+    const isOwner = product.user.toString() === req.userId;  // ← từ middleware
+    if (!isOwner && req.user.role !== "admin") {             // ← req.user.role từ middleware
       return res.status(403).json({ success: false, message: "Forbidden" });
     }
 
-    const allowedFields = [
-      "name",
-      "summary",
-      "description",
-      "price",
-      "images",
-      "category",
-      "stock",
-      "isActive",
-    ];
+    const allowedFields = ["name", "summary", "description", "price", "images", "category", "stock", "isActive"];
     const updates = {};
-    allowedFields.forEach((f) => {
-      if (req.body[f] !== undefined) updates[f] = req.body[f];
-    });
+    allowedFields.forEach((f) => { if (req.body[f] !== undefined) updates[f] = req.body[f]; });
 
     const updated = await Product.findByIdAndUpdate(
       req.params.id,
       { $set: updates },
-      { new: true, runValidators: true },
+      { new: true, runValidators: true }
     );
 
     return res.json({ success: true, data: updated });
@@ -378,32 +256,16 @@ export const updateProduct = async (req, res) => {
   }
 };
 
-/**
- * DELETE /api/products/:id
- * Soft delete (isActive = false) – chỉ owner hoặc admin
- */
 export const deleteProduct = async (req, res) => {
   try {
-    const currentUser = await User.findOne({ clerkId: req.auth.userId }).select(
-      "_id role",
-    );
-    if (!currentUser)
-      return res
-        .status(404)
-        .json({ success: false, message: "User not found" });
-
     const product = await Product.findById(req.params.id);
-    if (!product)
-      return res
-        .status(404)
-        .json({ success: false, message: "Product not found" });
+    if (!product) return res.status(404).json({ success: false, message: "Product not found" });
 
-    const isOwner = product.user.toString() === currentUser._id.toString();
-    if (!isOwner && currentUser.role !== "admin") {
+    const isOwner = product.user.toString() === req.userId;
+    if (!isOwner && req.user.role !== "admin") {
       return res.status(403).json({ success: false, message: "Forbidden" });
     }
 
-    // Soft delete
     await Product.findByIdAndUpdate(req.params.id, { isActive: false });
     return res.json({ success: true, message: "Product deactivated" });
   } catch (err) {
@@ -559,25 +421,7 @@ export const toggleLike = async (req, res) => {
  * GET /api/products/:id/likes
  * Lấy danh sách users đã like sản phẩm
  */
-export const getProductLikes = async (req, res) => {
-  try {
-    const product = await Product.findById(req.params.id)
-      .select("likes")
-      .populate("likes", "firstName lastName username profilePicture");
 
-    if (!product)
-      return res
-        .status(404)
-        .json({ success: false, message: "Product not found" });
-    return res.json({
-      success: true,
-      data: product.likes,
-      total: product.likes.length,
-    });
-  } catch (err) {
-    return handleError(res, err);
-  }
-};
 
 /* ================================================================
    RATING

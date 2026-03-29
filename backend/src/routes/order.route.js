@@ -4,16 +4,16 @@ import {
   createOrder, getMyOrders, getOrderById, cancelOrder, confirmReceived,
   getAllOrders, updateOrderStatus, markOrderAsPaid, deleteOrder, getOrderStats,
 } from "../controllers/order.controller.js";
+import { protectRoute } from "../middleware/auth.middleware.js";
  
 const router = express.Router();
-router.use(requireAuth());
- 
+
 /* --- User --- */
-router.post("/", createOrder);
-router.get("/me", getMyOrders);
-router.get("/:id", getOrderById);
-router.patch("/:id/cancel", cancelOrder);
-router.patch("/:id/received", confirmReceived);
+router.post("/", protectRoute, createOrder);
+router.get("/me", protectRoute, getMyOrders);
+router.get("/:id", protectRoute, getOrderById);
+router.patch("/:id/cancel", protectRoute, cancelOrder);
+router.patch("/:id/received", protectRoute, confirmReceived);
  
 /* --- Admin (thêm isAdmin middleware trước các route này nếu cần) --- */
 router.get("/admin/all", getAllOrders);

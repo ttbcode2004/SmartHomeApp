@@ -140,8 +140,11 @@ export default function CreateScreen() {
     images.forEach((img) => {
       fd.append("images", { uri: img.uri, type: img.type, name: img.name } as any);
     });
-
     const result = await createProduct(fd);
+    console.log('====================================');
+    console.log(result);
+    console.log('====================================');
+    
     if (result) {
       Alert.alert("Thành công", "Sản phẩm đã được tạo!", [
         { text: "OK", onPress: () => router.back() },

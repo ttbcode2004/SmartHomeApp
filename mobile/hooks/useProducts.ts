@@ -1,28 +1,28 @@
-// hooks/useProducts.ts
 import { useState, useCallback, useRef } from "react";
 import { useAuth } from "@clerk/expo";
 
-const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:3000/api";
+const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? "http://192.168.13.1:3000/api";
 
 export type Category =
-  | "control"
-  | "led"
-  | "electric"
-  | "curtain"
-  | "air-conditioner"
-  | "camera";
+  | "control" | "led" | "electric"
+  | "curtain" | "air-conditioner" | "camera";
 
 export type SortOption =
-  | "newest"
-  | "price_asc"
-  | "price_desc"
-  | "rating"
-  | "best_selling";
+  | "newest" | "price_asc" | "price_desc" | "rating" | "best_selling";
+
+export interface ProductUser {
+  _id: string;
+  firstName: string;
+  lastName: string;
+  username: string;
+  profilePicture?: string;
+}
 
 export interface Product {
   _id: string;
   name: string;
   summary: string;
+  description?: string;
   price: number;
   images: string[];
   category: Category;
@@ -33,13 +33,7 @@ export interface Product {
   likes: string[];
   isActive: boolean;
   createdAt: string;
-  user: {
-    _id: string;
-    firstName: string;
-    lastName: string;
-    username: string;
-    profilePicture?: string;
-  };
+  user: ProductUser;
 }
 
 export interface ProductsFilter {
@@ -60,7 +54,7 @@ interface PaginatedResponse {
   totalPages: number;
 }
 
-/* ─── Helpers ─────────────────────────────────────── */
+/* ─── Helper ──────────────────────────────────────── */
 const buildQuery = (params: Record<string, any>) =>
   Object.entries(params)
     .filter(([, v]) => v !== undefined && v !== "" && v !== null)
@@ -71,19 +65,21 @@ const buildQuery = (params: Record<string, any>) =>
 const useProducts = () => {
   const { getToken } = useAuth();
 
-  const [products, setProducts] = useState<Product[]>([]);
-  const [myProducts, setMyProducts] = useState<Product[]>([]);
+  const [products, setProducts]           = useState<Product[]>([]);
+  const [myProducts, setMyProducts]       = useState<Product[]>([]);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [relatedProducts, setRelatedProducts] = useState<Product[]>([]);
+  const [categoryProducts, setCategoryProducts] = useState<Product[]>([]);  // ← thêm
+  const [productLikes, setProductLikes]   = useState<ProductUser[]>([]);    // ← thêm
 
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading]         = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting]   = useState(false);
+  const [error, setError]                 = useState<string | null>(null);
 
-  const [page, setPage] = useState(1);
+  const [page, setPage]             = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  const [total, setTotal] = useState(0);
+  const [total, setTotal]           = useState(0);
 
   const abortRef = useRef<AbortController | null>(null);
 
@@ -103,6 +99,10 @@ const useProducts = () => {
     [getToken]
   );
 
+  /* ================================================================
+     PUBLIC
+  ================================================================ */
+
   /* ── fetchProducts ── */
   const fetchProducts = useCallback(
     async (filter: ProductsFilter = {}, replace = true) => {
@@ -111,22 +111,16 @@ const useProducts = () => {
 
       replace ? setIsLoading(true) : setIsLoadingMore(true);
       setError(null);
-        
+
       try {
         const query = buildQuery({ limit: 12, ...filter });
-        console.log('====================================');
-        console.log('ASE_URI', `${BASE_URL}/products?${query}`);
-        console.log('====================================');
         const res = await fetch(`${BASE_URL}/products?${query}`, {
           signal: abortRef.current.signal,
         });
         const json: { success: boolean } & PaginatedResponse = await res.json();
-
         if (!json.success) throw new Error("Fetch failed");
 
-        setProducts((prev) =>
-          replace ? json.data : [...prev, ...json.data]
-        );
+        setProducts((prev) => replace ? json.data : [...prev, ...json.data]);
         setPage(json.page);
         setTotalPages(json.totalPages);
         setTotal(json.total);
@@ -175,9 +169,79 @@ const useProducts = () => {
     } catch {}
   }, []);
 
+  /* ── fetchProductsByCategory ── */       // ← thêm mới
+  const fetchProductsByCategory = useCallback(
+    async (category: Category, filter: Pick<ProductsFilter, "page" | "limit" | "sort"> = {}) => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const query = buildQuery({ limit: 12, ...filter });
+        const res = await fetch(`${BASE_URL}/products/category/${category}?${query}`);
+        const json = await res.json();
+        if (!json.success) throw new Error("Fetch failed");
+        setCategoryProducts(json.data);
+        setTotal(json.total);
+        setTotalPages(json.totalPages);
+        return json.data as Product[];
+      } catch (err: any) {
+        setError(err.message);
+        return [];
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    []
+  );
+
+  /* ── fetchProductsByUser ── */           // ← thêm mới
+  const fetchProductsByUser = useCallback(
+    async (userId: string, filter: Pick<ProductsFilter, "page" | "limit"> = {}) => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const query = buildQuery({ limit: 12, ...filter });
+        const res = await fetch(`${BASE_URL}/products/user/${userId}?${query}`);
+        const json = await res.json();
+        if (!json.success) throw new Error("Fetch failed");
+        return json.data as Product[];
+      } catch (err: any) {
+        setError(err.message);
+        return [];
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    []
+  );
+
+  /* ── fetchProductLikes ── */             // ← thêm mới
+  const fetchProductLikes = useCallback(async (id: string) => {
+    try {
+      const res = await fetch(`${BASE_URL}/products/${id}/likes`);
+      const json = await res.json();
+      if (!json.success) throw new Error("Fetch failed");
+      setProductLikes(json.data);
+      return json.data as ProductUser[];
+    } catch (err: any) {
+      setError(err.message);
+      return [];
+    }
+  }, []);
+
+  /* ── searchProducts ── */
+  const searchProducts = useCallback(
+    (search: string, extra: ProductsFilter = {}) =>
+      fetchProducts({ search, ...extra }),
+    [fetchProducts]
+  );
+
+  /* ================================================================
+     PROTECTED
+  ================================================================ */
+
   /* ── fetchMyProducts ── */
   const fetchMyProducts = useCallback(
-    async (filter: Pick<ProductsFilter, "page" | "limit"> = {}) => {
+    async (filter: Pick<ProductsFilter, "page" | "limit"> & { isActive?: boolean } = {}) => {
       setIsLoading(true);
       setError(null);
       try {
@@ -202,21 +266,15 @@ const useProducts = () => {
     async (formData: FormData) => {
       setIsSubmitting(true);
       setError(null);
-      console.log('form====================================');
-      console.log(formData);
-      console.log('====================================');
       try {
         const token = await getToken();
         const res = await fetch(`${BASE_URL}/products`, {
           method: "POST",
           headers: { Authorization: `Bearer ${token}` },
-          // Không set Content-Type — fetch tự set multipart/form-data boundary
+          // ⚠️ không set Content-Type — để fetch tự set multipart/form-data boundary
           body: formData,
         });
         const json = await res.json();
-        console.log('json====================================');
-        console.log(json);
-        console.log('====================================');
         if (!json.success) throw new Error(json.message ?? "Create failed");
         setMyProducts((prev) => [json.data, ...prev]);
         return json.data as Product;
@@ -232,8 +290,9 @@ const useProducts = () => {
 
   /* ── updateProduct ── */
   const updateProduct = useCallback(
-    async (id: string, updates: Partial<Product>) => {
+    async (id: string, updates: Partial<Omit<Product, "_id" | "user" | "createdAt">>) => {
       setIsSubmitting(true);
+      setError(null);
       try {
         const res = await authFetch(`/products/${id}`, {
           method: "PATCH",
@@ -241,12 +300,13 @@ const useProducts = () => {
         });
         const json = await res.json();
         if (!json.success) throw new Error(json.message);
-        setProducts((prev) =>
-          prev.map((p) => (p._id === id ? json.data : p))
-        );
-        setMyProducts((prev) =>
-          prev.map((p) => (p._id === id ? json.data : p))
-        );
+
+        // Sync cả 2 list
+        const updater = (p: Product) => (p._id === id ? json.data : p);
+        setProducts((prev) => prev.map(updater));
+        setMyProducts((prev) => prev.map(updater));
+        if (selectedProduct?._id === id) setSelectedProduct(json.data);
+
         return json.data as Product;
       } catch (err: any) {
         setError(err.message);
@@ -255,7 +315,7 @@ const useProducts = () => {
         setIsSubmitting(false);
       }
     },
-    [authFetch]
+    [authFetch, selectedProduct]
   );
 
   /* ── deleteProduct ── */
@@ -276,22 +336,23 @@ const useProducts = () => {
     [authFetch]
   );
 
-  /* ── toggleLike ── */
-  const toggleLike = useCallback(
-    async (id: string) => {
+  /* ── updateStock ── */                   // ← thêm mới
+  const updateStock = useCallback(
+    async (id: string, payload: { stock?: number; increment?: number }) => {
       try {
-        const res = await authFetch(`/products/${id}/like`, {
-          method: "POST",
+        const res = await authFetch(`/products/${id}/stock`, {
+          method: "PATCH",
+          body: JSON.stringify(payload),
         });
         const json = await res.json();
         if (!json.success) throw new Error(json.message);
 
-        const update = (p: Product) =>
-          p._id === id ? { ...p, likes: Array(json.likes).fill("") } : p;
+        const updater = (p: Product) =>
+          p._id === id ? { ...p, stock: json.data.stock } : p;
+        setProducts((prev) => prev.map(updater));
+        setMyProducts((prev) => prev.map(updater));
 
-        setProducts((prev) => prev.map(update));
-        setSelectedProduct((prev) => (prev?._id === id ? update(prev) : prev));
-        return json;
+        return json.data.stock as number;
       } catch (err: any) {
         setError(err.message);
         return null;
@@ -300,12 +361,39 @@ const useProducts = () => {
     [authFetch]
   );
 
-  /* ── searchProducts ── */
-  const searchProducts = useCallback(
-    (search: string, extra: ProductsFilter = {}) =>
-      fetchProducts({ search, ...extra }),
-    [fetchProducts]
+  /* ── toggleLike ── */
+  const toggleLike = useCallback(
+    async (id: string) => {
+      try {
+        const res = await authFetch(`/products/${id}/like`, { method: "POST" });
+        const json = await res.json();
+        if (!json.success) throw new Error(json.message);
+
+        // ✅ Optimistic update đúng — dùng likesCount thay vì tạo array rỗng
+        const updater = (p: Product) =>
+          p._id === id
+            ? {
+                ...p,
+                likes: json.action === "liked"
+                  ? [...p.likes, "me"]           // thêm placeholder
+                  : p.likes.slice(0, -1),         // bớt 1 phần tử
+              }
+            : p;
+
+        setProducts((prev) => prev.map(updater));
+        setSelectedProduct((prev) => (prev?._id === id ? updater(prev) : prev));
+
+        return json as { success: boolean; action: "liked" | "unliked"; likes: number };
+      } catch (err: any) {
+        setError(err.message);
+        return null;
+      }
+    },
+    [authFetch]
   );
+
+  /* ── clearError ── */
+  const clearError = useCallback(() => setError(null), []);
 
   return {
     // state
@@ -313,6 +401,8 @@ const useProducts = () => {
     myProducts,
     selectedProduct,
     relatedProducts,
+    categoryProducts,
+    productLikes,
     isLoading,
     isLoadingMore,
     isSubmitting,
@@ -320,17 +410,24 @@ const useProducts = () => {
     page,
     totalPages,
     total,
-    // actions
+    // actions – public
     fetchProducts,
     loadMore,
     fetchProductById,
     fetchRelated,
+    fetchProductsByCategory,
+    fetchProductsByUser,
+    fetchProductLikes,
+    searchProducts,
+    // actions – protected
     fetchMyProducts,
     createProduct,
     updateProduct,
     deleteProduct,
+    updateStock,
     toggleLike,
-    searchProducts,
+    // utils
+    clearError,
   };
 };
 

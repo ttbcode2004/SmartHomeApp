@@ -10,19 +10,10 @@ const handleError = (res, err, msg = "Server error") => {
   return res.status(500).json({ success: false, message: msg, error: err.message });
 };
 
-/* ================================================================
-   USER – ĐẶT HÀNG & XEM ĐƠN
-================================================================ */
-
-/**
- * POST /api/orders
- * Tạo đơn hàng mới từ cart hoặc body
- * Body: { products[], address, paymentMethod }
- */
 export const createOrder = async (req, res) => {
   try {
     const { products, address, paymentMethod } = req.body;
-
+    
     if (!products || !products.length) {
       return res.status(400).json({ success: false, message: "No products provided" });
     }
@@ -33,15 +24,11 @@ export const createOrder = async (req, res) => {
       return res.status(400).json({ success: false, message: "Invalid payment method" });
     }
 
-    // Tìm user theo clerkId
-    const user = await User.findOne({ clerkId: req.auth.userId });
-    if (!user) return res.status(404).json({ success: false, message: "User not found" });
-
     const totalQuantity = products.reduce((sum, p) => sum + p.quantity, 0);
     const totalPrice = products.reduce((sum, p) => sum + p.price * p.quantity, 0);
 
     const order = await Order.create({
-      user: user._id,
+      user: req.userId,
       products,
       address,
       paymentMethod,
@@ -50,7 +37,7 @@ export const createOrder = async (req, res) => {
     });
 
     // Xoá cart sau khi đặt hàng thành công
-    await User.findByIdAndUpdate(user._id, { $set: { cart: [] } });
+    await User.findByIdAndUpdate({_id:req.userId}, { $set: { cart: [] } });
 
     return res.status(201).json({ success: true, data: order });
   } catch (err) {
@@ -58,18 +45,11 @@ export const createOrder = async (req, res) => {
   }
 };
 
-/**
- * GET /api/orders/me
- * Lấy danh sách đơn hàng của user hiện tại
- * Query: ?page=1&limit=10&status=pending
- */
 export const getMyOrders = async (req, res) => {
   try {
-    const user = await User.findOne({ clerkId: req.auth.userId }).select("_id");
-    if (!user) return res.status(404).json({ success: false, message: "User not found" });
 
     const { page = 1, limit = 10, status } = req.query;
-    const query = { user: user._id };
+    const query = { user: req.userId };
     if (status) query.status = status;
 
     const [orders, total] = await Promise.all([
@@ -86,20 +66,14 @@ export const getMyOrders = async (req, res) => {
   }
 };
 
-/**
- * GET /api/orders/:id
- * Lấy chi tiết đơn hàng (chỉ được xem đơn của mình, trừ admin)
- */
 export const getOrderById = async (req, res) => {
   try {
     const order = await Order.findById(req.params.id).populate("user", "firstName lastName email");
     if (!order) return res.status(404).json({ success: false, message: "Order not found" });
 
     // Kiểm tra quyền: user chỉ xem được đơn của mình
-    const currentUser = await User.findOne({ clerkId: req.auth.userId }).select("_id role");
-    if (!currentUser) return res.status(404).json({ success: false, message: "User not found" });
 
-    if (currentUser.role !== "admin" && order.user._id.toString() !== currentUser._id.toString()) {
+    if (req.user.role !== "admin" && order.user._id.toString() !== req.userId.toString()) {
       return res.status(403).json({ success: false, message: "Forbidden" });
     }
 
@@ -109,16 +83,10 @@ export const getOrderById = async (req, res) => {
   }
 };
 
-/**
- * PATCH /api/orders/:id/cancel
- * User huỷ đơn hàng (chỉ khi status = pending)
- */
+
 export const cancelOrder = async (req, res) => {
   try {
-    const currentUser = await User.findOne({ clerkId: req.auth.userId }).select("_id");
-    if (!currentUser) return res.status(404).json({ success: false, message: "User not found" });
-
-    const order = await Order.findOne({ _id: req.params.id, user: currentUser._id });
+    const order = await Order.findOne({ _id: req.params.id, user: req.userId });
     if (!order) return res.status(404).json({ success: false, message: "Order not found" });
 
     if (order.status !== "pending") {
@@ -135,16 +103,10 @@ export const cancelOrder = async (req, res) => {
   }
 };
 
-/**
- * PATCH /api/orders/:id/received
- * User xác nhận đã nhận hàng
- */
+
 export const confirmReceived = async (req, res) => {
   try {
-    const currentUser = await User.findOne({ clerkId: req.auth.userId }).select("_id");
-    if (!currentUser) return res.status(404).json({ success: false, message: "User not found" });
-
-    const order = await Order.findOne({ _id: req.params.id, user: currentUser._id });
+    const order = await Order.findOne({ _id: req.params.id, user: req.userId });
     if (!order) return res.status(404).json({ success: false, message: "Order not found" });
 
     if (order.status !== "delivered") {
@@ -164,11 +126,6 @@ export const confirmReceived = async (req, res) => {
    ADMIN – QUẢN LÝ ĐƠN HÀNG
 ================================================================ */
 
-/**
- * GET /api/admin/orders
- * Admin lấy tất cả đơn hàng
- * Query: ?page=1&limit=20&status=pending&paymentMethod=cod&isPaid=false
- */
 export const getAllOrders = async (req, res) => {
   try {
     const { page = 1, limit = 20, status, paymentMethod, isPaid, search } = req.query;

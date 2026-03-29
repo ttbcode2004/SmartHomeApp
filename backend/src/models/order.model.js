@@ -112,13 +112,11 @@ const orderSchema = new Schema(
 orderSchema.index({ createdAt: -1 });
 
 /* ================= PRE SAVE ================= */
-orderSchema.pre("save", async function (next) {
+orderSchema.pre("save", async function () {
   if (this.isNew) {
-    // Random unique code
-    const random = Math.floor(100000 + Math.random() * 900000); // 6 số
+    const random = Math.floor(100000 + Math.random() * 900000);
     this.orderCode = `BACH${Date.now()}${random}`;
   }
-  next();
 });
 
 /* ================= METHOD ================= */
