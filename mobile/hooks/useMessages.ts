@@ -1,16 +1,10 @@
 
 import { useAuth } from "@clerk/expo";
 import { useQuery } from "@tanstack/react-query";
+import type { Message } from "@/types"; 
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL;
 
-export interface Message {
-  _id: string;
-  chatId: string;
-  sender: any;
-  content: string;
-  createdAt: string;
-}
 
 const useMessages = (chatId?: string) => {
   const { getToken } = useAuth();

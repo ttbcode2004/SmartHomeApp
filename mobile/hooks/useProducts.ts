@@ -1,58 +1,10 @@
 import { useState, useCallback, useRef } from "react";
 import { useAuth } from "@clerk/expo";
+import {Category, SortOption, ProductUser, Product, ProductsFilter, PaginatedResponse} from "@/types"
 
 const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? "http://192.168.13.1:3000/api";
 
-export type Category =
-  | "control" | "led" | "electric"
-  | "curtain" | "air-conditioner" | "camera";
 
-export type SortOption =
-  | "newest" | "price_asc" | "price_desc" | "rating" | "best_selling";
-
-export interface ProductUser {
-  _id: string;
-  firstName: string;
-  lastName: string;
-  username: string;
-  profilePicture?: string;
-}
-
-export interface Product {
-  _id: string;
-  name: string;
-  summary: string;
-  description?: string;
-  price: number;
-  images: string[];
-  category: Category;
-  stock: number;
-  sold: number;
-  ratingsAverage: number;
-  ratingsQuantity: number;
-  likes: string[];
-  isActive: boolean;
-  createdAt: string;
-  user: ProductUser;
-}
-
-export interface ProductsFilter {
-  page?: number;
-  limit?: number;
-  search?: string;
-  category?: Category;
-  minPrice?: number;
-  maxPrice?: number;
-  sort?: SortOption;
-  inStock?: boolean;
-}
-
-interface PaginatedResponse {
-  data: Product[];
-  total: number;
-  page: number;
-  totalPages: number;
-}
 
 /* ─── Helper ──────────────────────────────────────── */
 const buildQuery = (params: Record<string, any>) =>

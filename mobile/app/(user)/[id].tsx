@@ -14,8 +14,12 @@ import { LinearGradient } from "expo-linear-gradient";
 import Feather from "@expo/vector-icons/Feather";
 import useTheme from "@/hooks/useTheme";
 import useCurrentUser from "@/hooks/useCurrentUser";
-import  { PublicUser } from "@/types";
+import  { Product, PublicUser } from "@/types";
 import { useSocialActions } from "@/hooks/useSocialActions";
+import useProducts from "@/hooks/useProducts";
+import ProductCard from "@/components/products/ProductCard";
+import ImageViewerModal from "@/components/ImageViewerModal";
+
 
 export default function UserProfileScreen() {
   const { colors } = useTheme();
@@ -23,11 +27,11 @@ export default function UserProfileScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { dbUser, getUserById } = useCurrentUser();
+  const {fetchProductsByUser} = useProducts()
 
   const {
     isFollowing,
     isFriend,
-    isFriendRequestSent,
     actionLoading,
     handleToggleFollow,
     handleFriendAction,
@@ -37,20 +41,34 @@ export default function UserProfileScreen() {
   const friendBtn = getFriendBtnConfig(colors);
 
   const [profile, setProfile] = useState<PublicUser | null>(null);
+  const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-
-  /* ── Local stats (optimistic) ── */
   const [followersCount, setFollowersCount] = useState(0);
+  const [showViewer, setShowViewer] = useState(false);
+  const [viewerImage, setViewerImage] = useState<string | null>(null);
 
-  const isFollower =
-    dbUser?.followers?.some((f: any) => (f._id ?? f) === id) ?? false;
+  const isFollower = dbUser?.followers?.some((f: any) => (f._id ?? f) === id) ?? false;
 
-  /* ── Fetch profile ── */
-  /* ── Fetch profile ── */
+  const openViewer = (image?: string) => {
+    if (!image) return;
+    setViewerImage(image);
+    setShowViewer(true);
+  };
+
   useEffect(() => {
     if (!id) return;
 
-    // Nếu là chính mình thì chuyển sang tab profile
+    const loadProducts = async () => {
+      const data = await fetchProductsByUser(id);
+      setProducts(data);
+    };
+
+    loadProducts();
+  }, [id]);
+
+  useEffect(() => {
+    if (!id) return;
+
     if (dbUser?._id === id) {
       router.replace("/(tabs)/profile");
       return;
@@ -63,7 +81,7 @@ export default function UserProfileScreen() {
     });
   }, [id, dbUser?._id]);
 
-  /* ── States ── */
+  /* ───────── STATES ───────── */
   if (isLoading) {
     return (
       <View
@@ -103,76 +121,76 @@ export default function UserProfileScreen() {
       <StatusBar barStyle={colors.statusBarStyle} />
 
       {/* Back button */}
-      <View className="absolute z-10 left-4" style={{ top: insets.top + 12 }}>
-        <TouchableOpacity
-          onPress={() => router.back()}
-          className="w-9 h-9 rounded-full items-center justify-center"
-          style={{ backgroundColor: "#00000060" }}
-        >
-          <Feather name="arrow-left" size={18} color="#fff" />
-        </TouchableOpacity>
-      </View>
+      <TouchableOpacity
+        onPress={() => router.back()}
+        className="absolute left-4 z-10 w-9 h-9 rounded-full items-center justify-center"
+        style={{
+          top: insets.top + 12,
+          backgroundColor: "#00000060",
+        }}
+      >
+        <Feather name="arrow-left" size={18} color="#fff" />
+      </TouchableOpacity>
 
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 40 }}
       >
-        {/* Banner */}
+        {/* ───── Banner ───── */}
         <View className="h-44">
-          {profile.bannerImage ? (
-            <Image
-              source={{ uri: profile.bannerImage }}
-              className="w-full h-full"
-              resizeMode="cover"
-            />
-          ) : (
-            <LinearGradient
-              colors={colors.gradients.primary}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              className="w-full h-full"
-            />
-          )}
+          <TouchableOpacity
+            activeOpacity={0.9}
+            onPress={() => openViewer(profile.bannerImage)}
+          >
+            {profile.bannerImage ? (
+              <Image
+                source={{ uri: profile.bannerImage }}
+                className="w-full h-full"
+              />
+            ) : (
+              <LinearGradient
+                colors={colors.gradients.primary}
+                className="w-full h-full"
+              />
+            )}
+          </TouchableOpacity>
+
           <LinearGradient
+            pointerEvents="none"
             colors={["transparent", colors.bg + "dd"]}
             className="absolute inset-0"
           />
         </View>
 
-        {/* Avatar + Actions */}
-        <View className="px-4" style={{ marginTop: -44 }}>
-          <View className="flex-row items-flex-end justify-between">
+        {/* ───── Avatar + Actions ───── */}
+        <View className="px-4 -mt-11">
+          <View className="flex-row items-end justify-between">
             {/* Avatar */}
-            <View
-              style={{
-                borderWidth: 3,
-                borderColor: colors.bg,
-                borderRadius: 42,
-              }}
+            <TouchableOpacity
+              onPress={() => openViewer(profile.profilePicture)}
             >
-              {profile.profilePicture ? (
-                <Image
-                  source={{ uri: profile.profilePicture }}
-                  style={{ width: 80, height: 80, borderRadius: 40 }}
-                />
-              ) : (
-                <View
-                  style={{
-                    width: 80,
-                    height: 80,
-                    borderRadius: 40,
-                    backgroundColor: colors.primary + "20",
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
-                  <Feather name="user" size={36} color={colors.primary} />
-                </View>
-              )}
-            </View>
+              <View
+                className="rounded-full border-4"
+                style={{ borderColor: colors.bg }}
+              >
+                {profile.profilePicture ? (
+                  <Image
+                    source={{ uri: profile.profilePicture }}
+                    className="w-20 h-20 rounded-full"
+                  />
+                ) : (
+                  <View
+                    className="w-20 h-20 rounded-full items-center justify-center"
+                    style={{ backgroundColor: colors.primary + "20" }}
+                  >
+                    <Feather name="user" size={34} color={colors.primary} />
+                  </View>
+                )}
+              </View>
+            </TouchableOpacity>
 
-            {/* Action buttons */}
-            <View className="flex-row gap-2 mt-12">
+            {/* Actions */}
+            <View className="flex-row gap-2 mt-10">
               {/* Follow */}
               <TouchableOpacity
                 onPress={handleToggleFollow}
@@ -194,7 +212,9 @@ export default function UserProfileScreen() {
                 />
                 <Text
                   className="text-xs font-semibold"
-                  style={{ color: isFollowing ? colors.text : "#fff" }}
+                  style={{
+                    color: isFollowing ? colors.text : "#fff",
+                  }}
                 >
                   {isFollowing ? "Đang theo" : "Theo dõi"}
                 </Text>
@@ -204,10 +224,9 @@ export default function UserProfileScreen() {
               <TouchableOpacity
                 onPress={handleFriendAction}
                 disabled={friendBtn.disabled || actionLoading}
-                className="flex-row items-center gap-1.5 px-4 py-2 rounded-full"
+                className="flex-row items-center gap-1.5 px-4 py-2 rounded-full border"
                 style={{
                   backgroundColor: friendBtn.bgColor,
-                  borderWidth: 1,
                   borderColor: friendBtn.color,
                   opacity: actionLoading ? 0.7 : 1,
                 }}
@@ -227,55 +246,62 @@ export default function UserProfileScreen() {
             </View>
           </View>
 
-          {/* Name / username */}
+          {/* ───── Name ───── */}
           <Text
             className="text-xl font-bold mt-3"
             style={{ color: colors.text }}
           >
             {fullName}
           </Text>
-          <Text className="text-sm mt-0.5" style={{ color: colors.primary }}>
+
+          <Text
+            className="text-sm mt-1"
+            style={{ color: colors.primary }}
+          >
             @{profile.username}
           </Text>
 
-          {/* Follower badge */}
+          {/* Badge */}
           {isFollower && !isFriend && (
             <View
-              className="self-start mt-1.5 px-2.5 py-1 rounded-full"
+              className="self-start mt-2 px-2.5 py-1 rounded-full"
               style={{ backgroundColor: colors.textMuted + "18" }}
             >
-              <Text className="text-xs" style={{ color: colors.textMuted }}>
+              <Text
+                className="text-xs"
+                style={{ color: colors.textMuted }}
+              >
                 Đang theo dõi bạn
               </Text>
             </View>
           )}
 
-          {profile.bio ? (
+          {/* Bio */}
+          {!!profile.bio && (
             <Text
               className="text-sm mt-3 leading-5"
               style={{ color: colors.textMuted }}
             >
               {profile.bio}
             </Text>
-          ) : null}
+          )}
         </View>
 
-        {/* Stats */}
+        {/* ───── Stats ───── */}
         <View
-          className="mx-4 mt-5 rounded-2xl overflow-hidden"
+          className="mx-4 mt-5 rounded-2xl border overflow-hidden"
           style={{
             backgroundColor: colors.surface,
-            borderWidth: 1,
             borderColor: colors.border,
           }}
         >
-          <View className="flex-row items-center py-3">
+          <View className="flex-row py-3">
             {[
               { label: "Bạn bè", value: profile.friends?.length ?? 0 },
               { label: "Đang theo", value: profile.following?.length ?? 0 },
               { label: "Người theo", value: followersCount },
             ].map((stat, i, arr) => (
-              <View key={stat.label} className="flex-row flex-1">
+              <View key={stat.label} className="flex-1 flex-row">
                 <View className="flex-1 items-center">
                   <Text
                     className="text-lg font-bold"
@@ -284,27 +310,48 @@ export default function UserProfileScreen() {
                     {stat.value}
                   </Text>
                   <Text
-                    className="text-xs mt-0.5"
+                    className="text-xs mt-1"
                     style={{ color: colors.textMuted }}
                   >
                     {stat.label}
                   </Text>
                 </View>
+
                 {i < arr.length - 1 && (
                   <View
-                    style={{
-                      width: 1,
-                      height: 32,
-                      backgroundColor: colors.border,
-                      alignSelf: "center",
-                    }}
+                    className="w-px h-8 self-center"
+                    style={{ backgroundColor: colors.border }}
                   />
                 )}
               </View>
             ))}
           </View>
         </View>
+
+        {/* product */}
+        <View className="px-4 mt-6">
+          <Text
+            className="text-lg font-bold mb-3"
+            style={{ color: colors.text }}
+          >
+            Sản phẩm
+          </Text>
+
+          {products.length === 0 ? (
+            <Text style={{ color: colors.textMuted }}>
+              Chưa có sản phẩm
+            </Text>
+          ) : (
+            <View className="flex-row flex-wrap gap-3">
+              {products.map((item) => (
+                <ProductCard key={item._id} product={item}/>
+              ))}
+            </View>
+          )}
+        </View>
       </ScrollView>
+
+      <ImageViewerModal visible={showViewer} image={viewerImage} onClose={() => setShowViewer(false)} />
     </View>
   );
 }

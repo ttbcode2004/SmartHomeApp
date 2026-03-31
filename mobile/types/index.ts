@@ -128,6 +128,57 @@ export interface UseCurrentUserReturn {
   isFriendRequestSent: (userId: string) => boolean;
 }
 
+export type Category =
+  | "control" | "led" | "electric"
+  | "curtain" | "air-conditioner" | "camera";
+
+export type SortOption =
+  | "newest" | "price_asc" | "price_desc" | "rating" | "best_selling";
+
+export interface ProductUser {
+  _id: string;
+  firstName: string;
+  lastName: string;
+  username: string;
+  profilePicture?: string;
+}
+
+export interface Product {
+  _id: string;
+  name: string;
+  summary: string;
+  description?: string;
+  price: number;
+  images: string[];
+  category: Category;
+  stock: number;
+  sold: number;
+  ratingsAverage: number;
+  ratingsQuantity: number;
+  likes: string[];
+  isActive: boolean;
+  createdAt: string;
+  user: ProductUser;
+}
+
+export interface ProductsFilter {
+  page?: number;
+  limit?: number;
+  search?: string;
+  category?: Category;
+  minPrice?: number;
+  maxPrice?: number;
+  sort?: SortOption;
+  inStock?: boolean;
+}
+
+export interface PaginatedResponse {
+  data: Product[];
+  total: number;
+  page: number;
+  totalPages: number;
+}
+
 export interface MessageSender {
   _id: string;
   name: string;
@@ -137,7 +188,7 @@ export interface MessageSender {
 
 export interface Message {
   _id: string;
-  chat: string;
+  chatId: string;
   sender: MessageSender | string;
   text: string;
   createdAt: string;

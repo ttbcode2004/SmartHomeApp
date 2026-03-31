@@ -1,28 +1,29 @@
 import { View, Text, Image, TouchableOpacity, Pressable, ActivityIndicator } from "react-native";
 import Feather from "@expo/vector-icons/Feather";
 import { useRouter } from "expo-router";
-import type { Product } from "@/hooks/useProducts";
+import { Product } from "@/types";
 import useTheme from "@/hooks/useTheme";
+import useProductActions from "@/hooks/useProductActions";
+import Toast from "@/components/Toast";
 
 interface Props {
   product: Product;
-  isWishlisted?: boolean;
-  onAddToCart?: (product: Product) => void;
-  onToggleWishlist?: (product: Product) => void;
-  cartLoading?: boolean;
-  wishlistLoading?: boolean;
 }
 
 export default function ProductCard({
   product,
-  isWishlisted = false,
-  onAddToCart,
-  onToggleWishlist,
-  cartLoading = false,
-  wishlistLoading = false,
 }: Props) {
   const router     = useRouter();
   const { colors } = useTheme();
+  const {
+      cartLoadingId, handleAddToCart,
+      wishlistLoadingId, handleToggleWishlist, isWishlisted: isWishlistedFn,
+      toast, opacity,
+    } = useProductActions();
+  
+  const isWishlisted = isWishlistedFn(product._id)
+  const cartLoading = cartLoadingId === product._id
+  const wishlistLoading = wishlistLoadingId === product._id
   
   const isOutOfStock = product.stock === 0;
   const sellerName   =
@@ -106,7 +107,7 @@ export default function ProductCard({
           <View className="flex-row gap-1.5">
             {/* Wishlist button */}
             <Pressable
-              onPress={(e) => { e.stopPropagation(); onToggleWishlist?.(product); }}
+              onPress={(e) => { e.stopPropagation(); handleToggleWishlist?.(product); }}
               disabled={wishlistLoading}
               className="w-[30px] h-[30px] rounded-full items-center justify-center"
               style={{
@@ -122,7 +123,7 @@ export default function ProductCard({
 
             {/* Cart button */}
             <Pressable
-              onPress={(e) => { e.stopPropagation(); if (!isOutOfStock) onAddToCart?.(product); }}
+              onPress={(e) => { e.stopPropagation(); if (!isOutOfStock) handleAddToCart?.(product); }}
               disabled={isOutOfStock || cartLoading}
               className="w-[30px] h-[30px] rounded-full items-center justify-center"
               style={{
@@ -138,6 +139,7 @@ export default function ProductCard({
           </View>
         </View>
       </View>
+      <Toast toast={toast} opacity={opacity} />
     </TouchableOpacity>
   );
 }

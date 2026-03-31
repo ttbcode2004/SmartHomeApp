@@ -12,6 +12,8 @@ import useTheme from "@/hooks/useTheme";
 import useCurrentUser from "@/hooks/useCurrentUser";
 import { StatBox } from "@/components/profile/StatBox";
 import { MenuItem } from "@/components/profile/MenuItem";
+import { useState } from "react";
+import ImageViewerModal from "@/components/ImageViewerModal";
 
 export default function ProfileScreen() {
   const { colors, isDarkMode, toggleDarkMode } = useTheme();
@@ -19,6 +21,15 @@ export default function ProfileScreen() {
   const { signOut } = useAuth();
   const router = useRouter();
   const { dbUser, isLoading } = useCurrentUser();
+
+  const [showViewer, setShowViewer] = useState(false);
+  const [viewerImage, setViewerImage] = useState<string | null>(null);
+
+  const openViewer = (image?: string) => {
+    if (!image) return;
+    setViewerImage(image);
+    setShowViewer(true);
+  };
 
   const handleSignOut = () => {
     Alert.alert("Đăng xuất", "Bạn có chắc muốn đăng xuất?", [
@@ -88,54 +99,67 @@ export default function ProfileScreen() {
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
         {/* Banner */}
         <View className="h-28 relative">
-          {dbUser?.bannerImage ? (
-            <Image source={{ uri: dbUser.bannerImage }} className="w-full h-full" resizeMode="cover" />
-          ) : (
-            <LinearGradient
-              colors={colors.gradients.primary}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              className="w-full h-full"
-            />
-          )}
-          <LinearGradient colors={["transparent", colors.bg + "cc"]} className="absolute inset-0" />
+          <TouchableOpacity
+            activeOpacity={0.9}
+            onPress={() => openViewer(dbUser?.bannerImage)}
+          >
+            {dbUser?.bannerImage ? (
+              <Image
+                source={{ uri: dbUser?.bannerImage }}
+                className="w-full h-full"
+              />
+            ) : (
+              <LinearGradient
+                colors={colors.gradients.primary}
+                className="w-full h-full"
+              />
+            )}
+          </TouchableOpacity>
+          <LinearGradient 
+            pointerEvents="none" 
+            colors={["transparent", colors.bg + "cc"]} 
+            className="absolute inset-0" 
+          />
         </View>
 
         {/* Avatar + Info */}
         <View className="px-4">
           <View className="flex-row items-flex-end justify-between" style={{ marginTop: -38 }}>
             {/* Avatar */}
-            <View
-              className="rounded-full"
-              style={{
-                borderWidth: 3,
-                borderColor: colors.bg,
-                borderRadius: 42,
-                shadowColor: colors.shadow,
-                shadowOffset: { width: 0, height: 4 },
-                shadowOpacity: 0.18,
-                shadowRadius: 8,
-                elevation: 6,
-              }}
+            <TouchableOpacity
+              onPress={() => openViewer(dbUser?.profilePicture)}
             >
-              {dbUser?.profilePicture ? (
-                <Image
-                  source={{ uri: dbUser.profilePicture }}
-                  style={{ width: 76, height: 76, borderRadius: 38 }}
-                />
-              ) : (
-                <View
-                  style={{
-                    width: 76, height: 76, borderRadius: 38,
-                    backgroundColor: colors.primary + "20",
-                    alignItems: "center", justifyContent: "center",
-                  }}
-                >
-                  <Feather name="user" size={34} color={colors.primary} />
-                </View>
-              )}
-            </View>
-
+              <View
+                className="rounded-full"
+                style={{
+                  borderWidth: 3,
+                  borderColor: colors.bg,
+                  borderRadius: 42,
+                  shadowColor: colors.shadow,
+                  shadowOffset: { width: 0, height: 4 },
+                  shadowOpacity: 0.18,
+                  shadowRadius: 8,
+                  elevation: 6,
+                }}
+              >
+                {dbUser?.profilePicture ? (
+                  <Image
+                    source={{ uri: dbUser.profilePicture }}
+                    style={{ width: 76, height: 76, borderRadius: 38 }}
+                  />
+                ) : (
+                  <View
+                    style={{
+                      width: 76, height: 76, borderRadius: 38,
+                      backgroundColor: colors.primary + "20",
+                      alignItems: "center", justifyContent: "center",
+                    }}
+                  >
+                    <Feather name="user" size={34} color={colors.primary} />
+                  </View>
+                )}
+              </View>
+            </TouchableOpacity>
             {/* Role badge */}
             {dbUser?.role === "admin" && (
               <View className="px-3 py-1 rounded-full mt-2" style={{ backgroundColor: colors.warning + "20" }}>
@@ -244,6 +268,7 @@ export default function ProfileScreen() {
           v1.0.0
         </Text>
       </ScrollView>
+      <ImageViewerModal visible={showViewer} image={viewerImage} onClose={() => setShowViewer(false)} />
     </View>
   );
 }

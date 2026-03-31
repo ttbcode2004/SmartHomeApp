@@ -17,6 +17,7 @@ import {
   Platform,
   ActivityIndicator,
   TextInput,
+  FlatList,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import useTheme from "@/hooks/useTheme";
@@ -40,7 +41,7 @@ const ChatDetailScreen = () => {
 
   const [messageText, setMessageText] = useState("");
   const [isSending, setIsSending] = useState(false);
-  const scrollViewRef = useRef<ScrollView>(null);
+  const flatListRef = useRef<FlatList>(null);
 
   const { dbUser: currentUser } = useCurrentUser();
   const { messages, isLoading } = useMessages(chatId);
@@ -55,13 +56,10 @@ const ChatDetailScreen = () => {
     typingUsers,
   } = useSocketStore();
 
-  const isOnline = participantId
-    ? onlineUsers.has(participantId)
-    : false;
+  const isOnline = participantId ? onlineUsers.has(participantId) : false;
   const isTyping = typingUsers.get(chatId) === participantId;
 
-  const typingTimeoutRef =
-    useRef<ReturnType<typeof setTimeout> | null>(null);
+  const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (chatId && isConnected) joinChat(chatId);
@@ -71,12 +69,10 @@ const ChatDetailScreen = () => {
   }, [chatId, isConnected, joinChat, leaveChat]);
 
   useEffect(() => {
-    if (messages && messages.length > 0) {
-      setTimeout(() => {
-        scrollViewRef.current?.scrollToEnd({ animated: true });
-      }, 100);
+    if (messages.length > 0) {
+      flatListRef.current?.scrollToEnd({ animated: true });
     }
-  }, [messages]);
+  }, [messages.length]);
 
   const handleTyping = useCallback(
     (text: string) => {
@@ -101,20 +97,19 @@ const ChatDetailScreen = () => {
         sendTyping(chatId, false);
       }
     },
-    [chatId, isConnected, sendTyping]
+    [chatId, isConnected, sendTyping],
   );
 
   const handleSend = () => {
     if (!messageText.trim() || isSending || !isConnected || !currentUser)
       return;
 
-    if (typingTimeoutRef.current) {
-      clearTimeout(typingTimeoutRef.current);
-    }
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     sendTyping(chatId, false);
 
+    // ✅ Không cần tạo optimistic message ở đây nữa
+    // vì sendMessage trong socket đã tự làm optimistic update
     setIsSending(true);
-
     sendMessage(chatId, messageText.trim(), {
       _id: currentUser._id,
       name: currentUser.firstName,
@@ -126,7 +121,7 @@ const ChatDetailScreen = () => {
     setIsSending(false);
 
     setTimeout(() => {
-      scrollViewRef.current?.scrollToEnd({ animated: true });
+      flatListRef.current?.scrollToEnd({ animated: true });
     }, 100);
   };
 
@@ -145,11 +140,7 @@ const ChatDetailScreen = () => {
         className="flex-row items-center px-4 py-2 border-b"
       >
         <Pressable onPress={() => router.back()}>
-          <Ionicons
-            name="arrow-back"
-            size={24}
-            color={colors.primary}
-          />
+          <Ionicons name="arrow-back" size={24} color={colors.primary} />
         </Pressable>
 
         <View className="flex-row items-center flex-1 ml-2">
@@ -175,28 +166,18 @@ const ChatDetailScreen = () => {
 
             <Text
               style={{
-                color: isTyping
-                  ? colors.primary
-                  : colors.textMuted,
+                color: isTyping ? colors.primary : colors.textMuted,
               }}
               className="text-xs"
             >
-              {isTyping
-                ? "typing..."
-                : isOnline
-                ? "Online"
-                : "Offline"}
+              {isTyping ? "typing..." : isOnline ? "Online" : "Offline"}
             </Text>
           </View>
         </View>
 
         <View className="flex-row items-center gap-3">
           <Pressable className="w-9 h-9 items-center justify-center">
-            <Ionicons
-              name="call-outline"
-              size={20}
-              color={colors.textMuted}
-            />
+            <Ionicons name="call-outline" size={20} color={colors.textMuted} />
           </Pressable>
           <Pressable className="w-9 h-9 items-center justify-center">
             <Ionicons
@@ -213,16 +194,10 @@ const ChatDetailScreen = () => {
         className="flex-1"
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
-        <View
-          style={{ backgroundColor: colors.surface }}
-          className="flex-1"
-        >
+        <View style={{ backgroundColor: colors.surface }} className="flex-1">
           {isLoading ? (
             <View className="flex-1 items-center justify-center">
-              <ActivityIndicator
-                size="large"
-                color={colors.primary}
-              />
+              <ActivityIndicator size="large" color={colors.primary} />
             </View>
           ) : !messages || messages.length === 0 ? (
             <EmptyUI
@@ -233,20 +208,22 @@ const ChatDetailScreen = () => {
               iconSize={64}
             />
           ) : (
-            <ScrollView
-              ref={scrollViewRef}
+            <FlatList
+              ref={flatListRef}
+              data={messages}
+              keyExtractor={(item) => item._id}
               contentContainerStyle={{
                 paddingHorizontal: 16,
                 paddingVertical: 12,
                 gap: 8,
               }}
-              onContentSizeChange={() => {
-                scrollViewRef.current?.scrollToEnd({
-                  animated: false,
-                });
-              }}
-            >
-              {messages.map((message) => {
+              onContentSizeChange={() =>
+                flatListRef.current?.scrollToEnd({ animated: false })
+              }
+              onLayout={() =>
+                flatListRef.current?.scrollToEnd({ animated: false })
+              }
+              renderItem={({ item: message }) => {
                 const senderId = (message.sender as MessageSender)._id;
                 const isFromMe = currentUser
                   ? senderId === currentUser._id
@@ -259,8 +236,8 @@ const ChatDetailScreen = () => {
                     isFromMe={isFromMe}
                   />
                 );
-              })}
-            </ScrollView>
+              }}
+            />
           )}
 
           {/* INPUT */}
@@ -278,11 +255,7 @@ const ChatDetailScreen = () => {
               className="flex-row items-end rounded-3xl px-3 py-1.5 gap-2"
             >
               <Pressable className="w-8 h-8 items-center justify-center">
-                <Ionicons
-                  name="add"
-                  size={22}
-                  color={colors.primary}
-                />
+                <Ionicons name="add" size={22} color={colors.primary} />
               </Pressable>
 
               <TextInput
@@ -305,19 +278,14 @@ const ChatDetailScreen = () => {
                 disabled={!messageText.trim() || isSending}
                 style={{
                   backgroundColor: colors.primary,
-                  opacity:
-                    !messageText.trim() || isSending ? 0.5 : 1,
+                  opacity: !messageText.trim() || isSending ? 0.5 : 1,
                 }}
                 className="w-8 h-8 rounded-full items-center justify-center"
               >
                 {isSending ? (
                   <ActivityIndicator size="small" color="#fff" />
                 ) : (
-                  <Ionicons
-                    name="send"
-                    size={18}
-                    color="#fff"
-                  />
+                  <Ionicons name="send" size={18} color="#fff" />
                 )}
               </Pressable>
             </View>

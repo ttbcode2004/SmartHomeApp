@@ -15,7 +15,7 @@ export default function Toast({ toast, opacity }: ToastProps) {
   return (
     <Animated.View
       style={{ opacity, backgroundColor: bgColor }}
-      className="absolute bottom-8 left-6 right-6 rounded-2xl flex-row items-center gap-3 px-4 py-3 shadow-lg z-50"
+      className="absolute top-1 left-1 right-1 rounded-2xl flex-row items-center gap-3 px-4 py-3 shadow-lg z-50"
     >
       {/* Icon badge */}
       <View

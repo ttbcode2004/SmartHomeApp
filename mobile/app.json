@@ -16,7 +16,8 @@
         "backgroundColor": "#E6F4FE"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.thatbach.mobile"
     },
     "web": {
       "output": "static",
@@ -45,11 +46,18 @@
           "project": "smart-home-app",
           "organization": "bach-dv"
         }
-      ]
+      ],
+      "@sentry/react-native"
     ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "22236a43-8d53-4ece-a0bb-991b85312a3a"
+      }
     }
   }
 }
